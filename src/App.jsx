@@ -1,18 +1,8 @@
-import { Routes, Route } from "react-router-dom";
-
-import LoginForm from "./pages/LoginForm";
-import RegisterForm from "./pages/RegisterForm";
+import AppRoutes from "./routes/AppRoutes";
 
 function App() {
-  return (
-    
-    <Routes>
-      <Route path="/" element={<LoginForm />} />
 
-      <Route path="/register" element={<RegisterForm />} />
-    </Routes>
-
-  );
+  return <AppRoutes />;
 }
 
 export default App;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import AuthLayout from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
@@ -7,6 +7,8 @@ import LOGO from '../assets/LOGO.png'
 
 const LoginForm = () => {
     const { login } = useAuth();
+
+    const navigate = useNavigate();
 
     const [showPassword, setShowPassword] = useState(false);
 
@@ -23,11 +25,25 @@ const LoginForm = () => {
     };
 
     const handleSubmit = (e) => {
+
         e.preventDefault();
 
         login(formData);
-    };
 
+        // GET USER
+
+        if (
+            formData.email === "admin@gmail.com" &&
+            formData.password === "Admin@123"
+        ) {
+
+            navigate("/admin");
+
+        } else {
+
+            navigate("/");
+        }
+    };
     return (
         <AuthLayout>
             <form onSubmit={handleSubmit}>

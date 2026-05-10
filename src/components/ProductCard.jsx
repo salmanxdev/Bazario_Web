@@ -18,7 +18,7 @@ const ProductCard = ({ product }) => {
                     <p>₹ {product.price} <span> {product.rating}⭐  </span></p>
                 </span>
 
-                <button>
+                <button className="add-to-cart">
                     Add To Cart
                 </button>
             </div>

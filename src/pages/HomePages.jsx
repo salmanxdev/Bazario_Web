@@ -5,6 +5,10 @@ import Sidebar from "../components/Sidebar";
 import ProductCard from "../components/ProductCard";
 import headset from '../assets/headset.jpg'
 import products from "../utils/products";
+import sofa from '../assets/sofa.jpg'
+import laptop from '../assets/laptop.jpg'
+import car from '../assets/car.jpg'
+import theater from '../assets/theater.jpg'
 
 const HomePage = () => {
 
@@ -13,14 +17,6 @@ const HomePage = () => {
         <div className="home-page">
 
             <div className="home-container">
-
-                {/* NAVBAR */}
-
-                <Navbar />
-
-                {/* SIDEBAR */}
-
-                <Sidebar />
 
                 {/* MAIN CONTENT */}
 
@@ -35,7 +31,27 @@ const HomePage = () => {
                                 <h2>HEADPHONES</h2>
                             </div>
                             <img
+                                src={sofa}
+                                alt=""
+                            />
+                        </div>
+                        <div className="banner-card">
+                            <div className="banner-content">
+                                <p>50% OFF ON</p>
+                                <h2>HEADPHONES</h2>
+                            </div>
+                            <img
                                 src={headset}
+                                alt=""
+                            />
+                        </div>
+                        <div className="banner-card">
+                            <div className="banner-content">
+                                <p>50% OFF ON</p>
+                                <h2>HEADPHONES</h2>
+                            </div>
+                            <img
+                                src={car}
                                 alt=""
                             />
                         </div>
@@ -65,53 +81,13 @@ const HomePage = () => {
                                 <h2>HEADPHONES</h2>
                             </div>
                             <img
-                                src={headset}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={headset}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={headset}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={headset}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={headset}
+                                src={laptop}
                                 alt=""
                             />
                         </div>
 
                     </div>
-                    
+
                     {/* DYNAMIC CONTENT */}
 
                     <Outlet />

@@ -6,6 +6,9 @@ import AdminDashboard from "../pages/AdminDashboard";
 
 import HomePage from "../pages/HomePages";
 import CategoryPage from "../pages/CategoryPage";
+import FilterPage from "../pages/FilterPages";
+
+import MainLayout from "../layout/MainLayout";
 
 const AppRoutes = () => {
 
@@ -32,17 +35,24 @@ const AppRoutes = () => {
                 element={<AdminDashboard />}
             />
 
-            {/* HOME LAYOUT */}
+            {/* MAIN LAYOUT */}
 
             <Route
-                path="/home"
-                element={<HomePage />}
+                element={<MainLayout />}
             >
 
-                {/* CATEGORY ROUTES */}
+                <Route
+                    path="/home"
+                    element={<HomePage />}
+                />
 
                 <Route
-                    path="category/:categoryName"
+                    path="/filter"
+                    element={<FilterPage />}
+                />
+
+                <Route
+                    path="/category/:categoryName"
                     element={<CategoryPage />}
                 />
 

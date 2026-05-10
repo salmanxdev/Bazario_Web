@@ -12,6 +12,22 @@ export const AuthProvider = ({ children }) => {
 
     console.log("Login Data:", data);
 
+    // GET REGISTERED USER
+
+    const storedUser = JSON.parse(
+      localStorage.getItem("registeredUser")
+    );
+
+    // IF NO USER EXISTS
+
+    if (!storedUser) {
+
+      return {
+        success: false,
+        message: "No account found",
+      };
+    }
+
     // ADMIN LOGIN
 
     if (
@@ -31,24 +47,43 @@ export const AuthProvider = ({ children }) => {
 
       setUser(adminUser);
 
-      return adminUser;
+      return {
+        success: true,
+        role: "admin",
+      };
     }
 
-    // NORMAL USER
+    // NORMAL USER LOGIN
 
-    const normalUser = {
-      email: data.email,
-      role: "user",
+    if (
+      data.email === storedUser.email &&
+      data.password === storedUser.password
+    ) {
+
+      const normalUser = {
+        email: data.email,
+        role: "user",
+      };
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(normalUser)
+      );
+
+      setUser(normalUser);
+
+      return {
+        success: true,
+        role: "user",
+      };
+    }
+
+    // INVALID LOGIN
+
+    return {
+      success: false,
+      message: "Invalid Email or Password",
     };
-
-    localStorage.setItem(
-      "user",
-      JSON.stringify(normalUser)
-    );
-
-    setUser(normalUser);
-
-    return normalUser;
   };
 
   // REGISTER
@@ -73,6 +108,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
+
     <AuthContext.Provider
       value={{
         user,
@@ -81,11 +117,14 @@ export const AuthProvider = ({ children }) => {
         logout,
       }}
     >
+
       {children}
+
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => {
+
   return useContext(AuthContext);
 };

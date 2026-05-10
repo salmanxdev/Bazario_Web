@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import AuthLayout from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
 import LOGO from '../assets/LOGO.png'
+import { toast } from "react-toastify";
 
 const LoginForm = () => {
     const { login } = useAuth();
@@ -28,22 +29,36 @@ const LoginForm = () => {
 
         e.preventDefault();
 
-        login(formData);
+        const response = login(formData);
 
-        // GET USER
+        // LOGIN FAILED
 
-        if (
-            formData.email === "admin@gmail.com" &&
-            formData.password === "Admin@123"
-        ) {
+        if (!response.success) {
+
+            toast.error(response.message);
+
+            return;
+        }
+
+        // ADMIN LOGIN
+
+        if (response.role === "admin") {
+
+            toast.success("Admin Login Successful");
 
             navigate("/admin");
+        }
 
-        } else {
+        // NORMAL USER LOGIN
 
-            navigate("/");
+        else {
+
+            toast.success("Login Successful");
+
+            navigate("/home");
         }
     };
+
     return (
         <AuthLayout>
             <form onSubmit={handleSubmit}>

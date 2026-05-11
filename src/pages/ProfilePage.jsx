@@ -4,6 +4,22 @@ import "./ProfilePage.css";
 
 import LOGO from "../assets/LOGO.png";
 
+import { useEffect, useState } from "react";
+
+import { auth, db, storage } from "../firebase";
+
+import {
+    doc,
+    getDoc,
+    updateDoc
+} from "firebase/firestore";
+
+import {
+    ref,
+    uploadBytes,
+    getDownloadURL
+} from "firebase/storage";
+
 import {
     X,
     Settings,
@@ -20,9 +36,84 @@ import {
     Headphones,
     BadgePercent,
     ShieldCheck,
+    Camera
 } from "lucide-react";
 
 const ProfilePage = () => {
+
+    const [userData, setUserData] = useState(null);
+
+    useEffect(() => {
+
+        const fetchUserData = async () => {
+
+            try {
+
+                const user = auth.currentUser;
+
+                if (!user) return;
+
+                const docRef = doc(db, "users", user.uid);
+
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+
+                    setUserData(docSnap.data());
+
+                }
+
+            } catch (error) {
+
+                console.log(error);
+
+            }
+
+        };
+
+        fetchUserData();
+
+    }, []);
+
+    const handleProfileUpload = async (e) => {
+
+        try {
+
+            const file = e.target.files[0];
+
+            if (!file) return;
+
+            const user = auth.currentUser;
+
+            const storageRef = ref(
+                storage,
+                `profileImages/${user.uid}`
+            );
+
+            await uploadBytes(storageRef, file);
+
+            const downloadURL =
+                await getDownloadURL(storageRef);
+
+            await updateDoc(
+                doc(db, "users", user.uid),
+                {
+                    photoURL: downloadURL,
+                }
+            );
+
+            setUserData((prev) => ({
+                ...prev,
+                photoURL: downloadURL,
+            }));
+
+        } catch (error) {
+
+            console.log(error);
+
+        }
+
+    };
 
     const menuItems = [
         {
@@ -84,8 +175,6 @@ const ProfilePage = () => {
 
         <div className="profile-page">
 
-            {/* TOPBAR */}
-
             <div className="profile-topbar">
 
                 <button className="icon-btn">
@@ -100,23 +189,49 @@ const ProfilePage = () => {
 
             </div>
 
-            {/* PROFILE CARD */}
-
             <div className="profile-card">
 
                 <div className="profile-header">
 
-                    <img
-                        src="https://i.pravatar.cc/150?img=12"
-                        alt="profile"
-                        className="profile-image"
-                    />
+                    <div className="profile-image-wrapper">
+
+                        <img
+                            src={
+                                userData?.photoURL ||
+                                "https://ui-avatars.com/api/?name=User"
+                            }
+                            alt="profile"
+                            className="profile-image"
+                        />
+
+                        <label className="upload-btn">
+
+                            <Camera size={16} />
+
+                            <input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                onChange={handleProfileUpload}
+                            />
+
+                        </label>
+
+                    </div>
 
                     <div className="profile-info">
 
-                        <h2>Rohan Verma</h2>
+                        <h2>
+                            {userData?.name || "User"}
+                        </h2>
 
-                        <p>rohan.verma@email.com</p>
+                        <p>
+                            {userData?.email || "No Email"}
+                        </p>
+
+                        <p>
+                            {userData?.phone || ""}
+                        </p>
 
                         <div className="verified-badge">
 
@@ -131,8 +246,6 @@ const ProfilePage = () => {
                     <ChevronRight className="arrow-icon" />
 
                 </div>
-
-                {/* STATS */}
 
                 <div className="stats-grid">
 
@@ -187,8 +300,6 @@ const ProfilePage = () => {
                 </div>
 
             </div>
-
-            {/* MENU */}
 
             <div className="menu-section">
 

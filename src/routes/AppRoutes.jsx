@@ -8,6 +8,11 @@ import HomePage from "../pages/HomePages";
 import CategoryPage from "../pages/CategoryPage";
 import FilterPage from "../pages/FilterPages";
 import ProfilePage from "../pages/ProfilePage";
+import LikesPage from "../pages/LikesPage";
+import ChatPage from "../pages/ChatPage";
+import LivePage from "../pages/LivePage";
+import AddShopPage from "../pages/AddShopPage";
+import ShopsPage from "../pages/ShopsPage";
 
 import MainLayout from "../layout/MainLayout";
 import SellerDashboard from "../pages/Sellerdashboard";
@@ -72,6 +77,31 @@ const AppRoutes = () => {
                 <Route
                     path="/category/:categoryName"
                     element={<CategoryPage />}
+                />
+
+                <Route
+                    path="/likes"
+                    element={<LikesPage />}
+                />
+
+                <Route
+                    path="/chat"
+                    element={<ChatPage />}
+                />
+
+                <Route
+                    path="/live"
+                    element={<LivePage />}
+                />
+
+                <Route
+                    path="/add-shop"
+                    element={<AddShopPage />}
+                />
+
+                <Route
+                    path="/shops"
+                    element={<ShopsPage />}
                 />
 
             </Route>

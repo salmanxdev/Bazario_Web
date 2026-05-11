@@ -1,11 +1,18 @@
 import { useCart } from "../context/CartContext";
+import { useState } from "react";
+import { showToast } from "../utils/toast";
+import { useNavigate } from "react-router-dom";
 
 const CartPage = () => {
 
     const {
         cartItems,
         removeFromCart,
+        placeOrder,
     } = useCart();
+
+    const navigate = useNavigate();
+    const [isProcessing, setIsProcessing] = useState(false);
 
     // TOTAL PRICE
 
@@ -17,6 +24,36 @@ const CartPage = () => {
 
         0
     );
+
+    const handleProceedToBuy = async () => {
+        if (cartItems.length === 0) {
+            showToast.warning("Your cart is empty!");
+            return;
+        }
+
+        setIsProcessing(true);
+
+        try {
+            const order = await placeOrder({
+                totalAmount: totalPrice,
+                shippingAddress: "Default Address",
+            });
+
+            if (order) {
+                showToast.success(`Order placed successfully! Order #${order.orderNumber}`);
+                setTimeout(() => {
+                    navigate("/home");
+                }, 2000);
+            } else {
+                showToast.error("Failed to place order. Please try again.");
+            }
+        } catch (error) {
+            console.error("Error placing order:", error);
+            showToast.error("An error occurred while placing the order.");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     return (
 
@@ -170,9 +207,10 @@ const CartPage = () => {
                                             {/* REMOVE */}
 
                                             <button
-                                                onClick={() =>
-                                                    removeFromCart(item.id)
-                                                }
+                                                onClick={() => {
+                                                    removeFromCart(item.id);
+                                                    showToast.info(`${item.title} removed from cart`);
+                                                }}
                                                 className="
                                                 bg-red-500
                                                 hover:bg-red-600
@@ -305,10 +343,14 @@ const CartPage = () => {
                                     </div>
 
                                     <button
+                                        onClick={handleProceedToBuy}
+                                        disabled={isProcessing}
                                         className="
                                         w-full
                                         bg-yellow-400
                                         hover:bg-yellow-500
+                                        disabled:bg-gray-400
+                                        disabled:cursor-not-allowed
                                         py-3
                                         rounded-xl
                                         font-semibold
@@ -316,7 +358,7 @@ const CartPage = () => {
                                         "
                                     >
 
-                                        Proceed To Buy
+                                        {isProcessing ? "Processing..." : "Proceed To Buy"}
 
                                     </button>
 

@@ -8,15 +8,18 @@ const CartContext = createContext();
 export const CartProvider = ({ children }) => {
 
     const [cartItems, setCartItems] = useState([]);
+    const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const { user } = useAuth();
 
-    // Load cart from Firestore when user logs in
+    // Load cart and orders from Firestore when user logs in
     useEffect(() => {
         if (user && user.email) {
             loadCartFromDatabase();
+            loadOrdersFromDatabase();
         } else {
             setCartItems([]);
+            setOrders([]);
         }
     }, [user]);
 
@@ -38,6 +41,30 @@ export const CartProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const loadOrdersFromDatabase = async () => {
+        try {
+            const userRef = doc(db, "users", user.email);
+            const userSnap = await getDoc(userRef);
+
+            if (userSnap.exists()) {
+                const data = userSnap.data();
+                setOrders(data.orders || []);
+            } else {
+                setOrders([]);
+            }
+        } catch (error) {
+            console.error("Error loading orders:", error);
+            setOrders([]);
+        }
+    };
+
+    // Generate unique order number
+    const generateOrderNumber = () => {
+        const timestamp = Date.now().toString().slice(-8);
+        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        return `ORD-${timestamp}-${random}`;
     };
 
     // ADD TO CART
@@ -134,13 +161,66 @@ export const CartProvider = ({ children }) => {
         }
     };
 
+    // PLACE ORDER
+    const placeOrder = async (orderDetails) => {
+        if (!user || !user.email) return null;
+
+        try {
+            const orderNumber = generateOrderNumber();
+            const newOrder = {
+                orderNumber,
+                items: cartItems,
+                totalAmount: orderDetails.totalAmount,
+                status: "Confirmed",
+                date: new Date().toISOString(),
+                estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+                shippingAddress: orderDetails.shippingAddress,
+                ...orderDetails,
+            };
+
+            const updatedOrders = [...orders, newOrder];
+            setOrders(updatedOrders);
+
+            // Save to Firestore
+            const userRef = doc(db, "users", user.email);
+            await updateDoc(userRef, {
+                orders: updatedOrders,
+                cart: [], // Clear cart after order
+            }).catch(async (error) => {
+                if (error.code === "not-found") {
+                    await setDoc(userRef, {
+                        email: user.email,
+                        orders: updatedOrders,
+                        cart: [],
+                    });
+                } else {
+                    throw error;
+                }
+            });
+
+            setCartItems([]); // Clear local cart
+            return newOrder;
+        } catch (error) {
+            console.error("Error placing order:", error);
+            return null;
+        }
+    };
+
+    // GET ORDERS
+    const getOrders = () => {
+        return orders;
+    };
+
     return (
 
         <CartContext.Provider
             value={{
                 cartItems,
+                orders,
                 addToCart,
                 removeFromCart,
+                placeOrder,
+                getOrders,
                 loading,
             }}
         >

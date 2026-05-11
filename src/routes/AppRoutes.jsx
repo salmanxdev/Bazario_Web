@@ -10,7 +10,7 @@ import FilterPage from "../pages/FilterPages";
 import ProfilePage from "../pages/ProfilePage";
 
 import MainLayout from "../layout/MainLayout";
-import SellerDashboard from "../pages/SellerDashboard";
+import SellerDashboard from "../pages/Sellerdashboard";
 import CartPage from "../pages/CartPage";
 
 const AppRoutes = () => {

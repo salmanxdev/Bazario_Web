@@ -1,96 +1,63 @@
-import { useCart } from "../context/CartContext";
-import { useState } from "react";
-import { showToast } from "../utils/toast";
-import { useNavigate } from "react-router-dom";
+return (
 
-const CartPage = () => {
+    <div
+        className="
+        w-full
+        h-screen
+        bg-[#EAEDED]
+        flex
+        flex-col
+        overflow-hidden
+        "
+    >
 
-    const {
-        cartItems,
-        removeFromCart,
-        placeOrder,
-    } = useCart();
-
-    const navigate = useNavigate();
-    const [isProcessing, setIsProcessing] = useState(false);
-
-    // TOTAL PRICE
-
-    const totalPrice = cartItems.reduce(
-
-        (total, item) =>
-
-            total + item.price * item.quantity,
-
-        0
-    );
-
-    const handleProceedToBuy = async () => {
-        if (cartItems.length === 0) {
-            showToast.warning("Your cart is empty!");
-            return;
-        }
-
-        setIsProcessing(true);
-
-        try {
-            const order = await placeOrder({
-                totalAmount: totalPrice,
-                shippingAddress: "Default Address",
-            });
-
-            if (order) {
-                showToast.success(`Order placed successfully! Order #${order.orderNumber}`);
-                setTimeout(() => {
-                    navigate("/home");
-                }, 2000);
-            } else {
-                showToast.error("Failed to place order. Please try again.");
-            }
-        } catch (error) {
-            console.error("Error placing order:", error);
-            showToast.error("An error occurred while placing the order.");
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    return (
+        {/* HEADER */}
 
         <div
             className="
-            w-full
-            min-h-screen
-            bg-[#EAEDED]
-            p-[12px]
+            p-4
+            bg-white
+            shadow-sm
+            border-b
             "
         >
-
-            {/* TITLE */}
 
             <h1
                 className="
                 text-3xl
                 font-bold
-                mb-6
                 "
             >
                 Shopping Cart
             </h1>
 
-            {
+        </div>
 
-                cartItems.length === 0
+        {
 
-                    ? (
+            cartItems.length === 0
+
+                ? (
+
+                    <div
+                        className="
+                        flex-1
+                        flex
+                        items-center
+                        justify-center
+                        p-5
+                        "
+                    >
 
                         <div
                             className="
                             bg-white
-                            rounded-xl
+                            rounded-2xl
                             p-10
                             text-center
                             shadow-sm
+                            w-full
+                            max-w-lg
                             "
                         >
 
@@ -105,273 +72,228 @@ const CartPage = () => {
                             </h2>
 
                             <p className="text-gray-500">
-
                                 Add products to continue shopping.
-
                             </p>
 
                         </div>
-                    )
 
-                    : (
+                    </div>
+
+                )
+
+                : (
+
+                    <>
+
+                        {/* SCROLLABLE PRODUCTS */}
 
                         <div
                             className="
-                            flex
-                            flex-col
-                            lg:flex-row
-                            gap-5
-                            items-stretch
+                            flex-1
+                            overflow-y-auto
+                            p-4
+                            space-y-4
                             "
                         >
 
-                            {/* LEFT */}
+                            {
 
-                            <div className="flex-1 space-y-5">
+                                cartItems.map((item) => (
 
-                                {
+                                    <div
+                                        key={item.id}
+                                        className="
+                                        bg-white
+                                        rounded-2xl
+                                        p-4
+                                        shadow-sm
+                                        flex
+                                        gap-4
+                                        items-center
+                                        "
+                                    >
 
-                                    cartItems.map((item) => (
+                                        {/* IMAGE */}
 
-                                        <div
-                                            key={item.id}
+                                        <img
+                                            src={item.image}
+                                            alt=""
                                             className="
-                                            bg-white
-                                            rounded-2xl
-                                            p-[16px]
-                                            shadow-sm
-                                            flex
-                                            flex-col
-                                            sm:flex-row
-                                            gap-5
-                                            items-center
+                                            w-28
+                                            h-28
+                                            object-cover
+                                            rounded-xl
+                                            border
                                             "
-                                        >
+                                        />
 
-                                            {/* IMAGE */}
+                                        {/* INFO */}
 
-                                            <img
-                                                src={item.image}
-                                                alt=""
+                                        <div className="flex-1">
+
+                                            <h2
                                                 className="
-                                                w-32
-                                                h-32
-                                                object-cover
-                                                rounded-xl
-                                                "
-                                            />
-
-                                            {/* INFO */}
-
-                                            <div className="flex-1">
-
-                                                <h2
-                                                    className="
-                                                    text-xl
-                                                    font-semibold
-                                                    mb-2
-                                                    "
-                                                >
-
-                                                    {item.title}
-
-                                                </h2>
-
-                                                <p
-                                                    className="
-                                                    text-lg
-                                                    font-bold
-                                                    text-indigo-600
-                                                    mb-2
-                                                    "
-                                                >
-
-                                                    ₹ {item.price}
-
-                                                </p>
-
-                                                <p
-                                                    className="
-                                                    text-gray-500
-                                                    "
-                                                >
-
-                                                    Quantity:
-                                                    {" "}
-                                                    {item.quantity}
-
-                                                </p>
-
-                                            </div>
-
-                                            {/* REMOVE */}
-
-                                            <button
-                                                onClick={() => {
-                                                    removeFromCart(item.id);
-                                                    showToast.info(`${item.title} removed from cart`);
-                                                }}
-                                                className="
-                                                bg-red-500
-                                                hover:bg-red-600
-                                                text-white
-                                                px-5
-                                                py-3
-                                                rounded-xl
-                                                transition
+                                                text-lg
+                                                font-semibold
+                                                mb-2
+                                                line-clamp-2
                                                 "
                                             >
+                                                {item.title}
+                                            </h2>
 
-                                                Remove
+                                            <p
+                                                className="
+                                                text-xl
+                                                font-bold
+                                                text-indigo-600
+                                                mb-2
+                                                "
+                                            >
+                                                ₹ {item.price}
+                                            </p>
 
-                                            </button>
+                                            <p className="text-gray-500">
+                                                Quantity: {item.quantity}
+                                            </p>
 
                                         </div>
-                                    ))
-                                }
 
-                            </div>
+                                        {/* REMOVE */}
 
-                            {/* RIGHT */}
+                                        <button
+                                            onClick={() => {
+                                                removeFromCart(item.id);
+                                                showToast.info(`${item.title} removed from cart`);
+                                            }}
+                                            className="
+                                            bg-red-500
+                                            hover:bg-red-600
+                                            text-white
+                                            px-4
+                                            py-2
+                                            rounded-xl
+                                            transition
+                                            "
+                                        >
+                                            Remove
+                                        </button>
+
+                                    </div>
+
+                                ))
+                            }
+
+                            {/* EXTRA SPACE FOR BOTTOM PANEL */}
+
+                            <div className="h-40"></div>
+
+                        </div>
+
+                        {/* FIXED BOTTOM PRICE PANEL */}
+
+                        <div
+                            className="
+                            bg-white
+                            border-t
+                            shadow-[0_-2px_10px_rgba(0,0,0,0.08)]
+                            p-5
+                            rounded-t-3xl
+                            "
+                        >
+
+                            <h2
+                                className="
+                                text-2xl
+                                font-bold
+                                mb-5
+                                "
+                            >
+                                Price Details
+                            </h2>
 
                             <div
                                 className="
-                                w-full
-                                lg:w-[350px]
-                                bg-white
-                                rounded-2xl
-                                p-[8px]
-                                shadow-sm
-                                h-full
+                                flex
+                                justify-between
+                                mb-3
+                                text-gray-600
                                 "
                             >
 
-                                <div
-                                    className="
-                                    w-full
-                                    h-full
-                                    border
-                                    border-gray-200
-                                    rounded-xl
-                                    p-5
-                                    "
-                                >
+                                <p>Total Items</p>
 
-                                    <h2
-                                        className="
-                                        text-2xl
-                                        font-bold
-                                        mb-6
-                                        "
-                                    >
-                                        Price Details
-                                    </h2>
-
-                                    <div
-                                        className="
-                                        flex
-                                        justify-between
-                                        mb-4
-                                        "
-                                    >
-
-                                        <p>
-
-                                            Total Items
-
-                                        </p>
-
-                                        <p>
-
-                                            {cartItems.length}
-
-                                        </p>
-
-                                    </div>
-
-                                    <div
-                                        className="
-                                        flex
-                                        justify-between
-                                        mb-4
-                                        "
-                                    >
-
-                                        <p>
-
-                                            Delivery
-
-                                        </p>
-
-                                        <p
-                                            className="
-                                            text-green-600
-                                            font-semibold
-                                            "
-                                        >
-
-                                            FREE
-
-                                        </p>
-
-                                    </div>
-
-                                    <hr className="my-4" />
-
-                                    <div
-                                        className="
-                                        flex
-                                        justify-between
-                                        text-xl
-                                        font-bold
-                                        mb-6
-                                        "
-                                    >
-
-                                        <p>
-
-                                            Total
-
-                                        </p>
-
-                                        <p>
-
-                                            ₹ {totalPrice}
-
-                                        </p>
-
-                                    </div>
-
-                                    <button
-                                        onClick={handleProceedToBuy}
-                                        disabled={isProcessing}
-                                        className="
-                                        w-full
-                                        bg-yellow-400
-                                        hover:bg-yellow-500
-                                        disabled:bg-gray-400
-                                        disabled:cursor-not-allowed
-                                        py-3
-                                        rounded-xl
-                                        font-semibold
-                                        transition
-                                        "
-                                    >
-
-                                        {isProcessing ? "Processing..." : "Proceed To Buy"}
-
-                                    </button>
-
-                                </div>
+                                <p>{cartItems.length}</p>
 
                             </div>
 
+                            <div
+                                className="
+                                flex
+                                justify-between
+                                mb-4
+                                text-gray-600
+                                "
+                            >
+
+                                <p>Delivery</p>
+
+                                <p className="text-green-600 font-semibold">
+                                    FREE
+                                </p>
+
+                            </div>
+
+                            <hr className="my-4" />
+
+                            <div
+                                className="
+                                flex
+                                justify-between
+                                text-2xl
+                                font-bold
+                                mb-5
+                                "
+                            >
+
+                                <p>Total</p>
+
+                                <p>₹ {totalPrice}</p>
+
+                            </div>
+
+                            <button
+                                onClick={handleProceedToBuy}
+                                disabled={isProcessing}
+                                className="
+                                w-full
+                                bg-yellow-400
+                                hover:bg-yellow-500
+                                disabled:bg-gray-400
+                                disabled:cursor-not-allowed
+                                py-4
+                                rounded-2xl
+                                font-bold
+                                text-lg
+                                transition
+                                "
+                            >
+
+                                {
+                                    isProcessing
+                                        ? "Processing..."
+                                        : "Proceed To Buy"
+                                }
+
+                            </button>
+
                         </div>
-                    )
-            }
 
-        </div>
-    );
-};
+                    </>
 
-export default CartPage;
+                )
+        }
+
+    </div>
+
+);

@@ -21,12 +21,12 @@ const CartPage = () => {
     return (
 
         <div
-            // className="
-            // w-full
-            // min-h-screen
-            // bg-[#EAEDED]
-            // p-[12px]
-            // "
+            className="
+            w-full
+            min-h-screen
+            bg-[#EAEDED]
+            p-[12px]
+            "
         >
 
             {/* TITLE */}

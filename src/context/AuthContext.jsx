@@ -53,28 +53,28 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    // NORMAL USER LOGIN
+    // BUYER / SELLER LOGIN
 
     if (
       data.email === storedUser.email &&
       data.password === storedUser.password
     ) {
 
-      const normalUser = {
+      const loggedInUser = {
         email: data.email,
-        role: "user",
+        role: storedUser.role,
       };
 
       localStorage.setItem(
         "user",
-        JSON.stringify(normalUser)
+        JSON.stringify(loggedInUser)
       );
 
-      setUser(normalUser);
+      setUser(loggedInUser);
 
       return {
         success: true,
-        role: "user",
+        role: storedUser.role,
       };
     }
 

@@ -10,11 +10,14 @@ export const CartProvider = ({ children }) => {
 
     const addToCart = (product) => {
 
+        // CHECK PRODUCT EXISTS
+
         const existingProduct = cartItems.find(
+
             (item) => item.id === product.id
         );
 
-        // IF PRODUCT ALREADY EXISTS
+        // IF EXISTS
 
         if (existingProduct) {
 
@@ -38,7 +41,9 @@ export const CartProvider = ({ children }) => {
         // NEW PRODUCT
 
         setCartItems([
+
             ...cartItems,
+
             {
                 ...product,
                 quantity: 1,
@@ -46,11 +51,12 @@ export const CartProvider = ({ children }) => {
         ]);
     };
 
-    // REMOVE
+    // REMOVE PRODUCT
 
     const removeFromCart = (id) => {
 
         const updatedCart = cartItems.filter(
+
             (item) => item.id !== id
         );
 

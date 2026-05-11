@@ -6,12 +6,13 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 
 import { ToastContainer } from "react-toastify";
+import { CartProvider } from "./context/CartContext";
 import "react-toastify/dist/ReactToastify.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-    <BrowserRouter>
-      <AuthProvider>
-
+  <BrowserRouter>
+    <AuthProvider>
+      <CartProvider>        
         <App />
 
         {/* TOAST CONTAINER */}
@@ -22,6 +23,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           theme="dark"
         />
 
-      </AuthProvider>
-    </BrowserRouter>
+      </CartProvider>
+
+
+    </AuthProvider>
+  </BrowserRouter>
 );

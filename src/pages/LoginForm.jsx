@@ -40,7 +40,7 @@ const LoginForm = () => {
             return;
         }
 
-        // ADMIN LOGIN
+        // ADMIN
 
         if (response.role === "admin") {
 
@@ -49,7 +49,16 @@ const LoginForm = () => {
             navigate("/admin");
         }
 
-        // NORMAL USER LOGIN
+        // SELLER
+
+        else if (response.role === "seller") {
+
+            toast.success("Seller Login Successful");
+
+            navigate("/seller");
+        }
+
+        // BUYER
 
         else {
 

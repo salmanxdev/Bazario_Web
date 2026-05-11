@@ -9,6 +9,8 @@ import CategoryPage from "../pages/CategoryPage";
 import FilterPage from "../pages/FilterPages";
 
 import MainLayout from "../layout/MainLayout";
+import SellerDashboard from "../pages/SellerDashboard";
+import CartPage from "../pages/CartPage";
 
 const AppRoutes = () => {
 
@@ -33,6 +35,16 @@ const AppRoutes = () => {
             <Route
                 path="/admin"
                 element={<AdminDashboard />}
+            />
+
+            <Route
+                path="/seller"
+                element={<SellerDashboard />}
+            />
+
+            <Route
+                path="/cart"
+                element={<CartPage />}
             />
 
             {/* MAIN LAYOUT */}

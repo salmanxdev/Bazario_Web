@@ -18,6 +18,7 @@ const RegisterForm = () => {
         email: "",
         phone: "",
         password: "",
+        role: "buyer",
     });
 
     const handleChange = (e) => {
@@ -200,7 +201,36 @@ const RegisterForm = () => {
                         👁
                     </span>
                 </div>
+                <div className="input-group">
 
+                    <label>
+
+                        Select Role
+                        <span className="required">*</span>
+
+                    </label>
+
+                    <select
+                        name="role"
+                        value={formData.role}
+                        onChange={handleChange}
+                    >
+
+                        <option value="buyer">
+
+                            Buyer
+
+                        </option>
+
+                        <option value="seller">
+
+                            Seller
+
+                        </option>
+
+                    </select>
+
+                </div>
                 <button type="submit">REGISTER</button>
 
                 <p className="bottom-link">

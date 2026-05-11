@@ -1,15 +1,35 @@
 import { useState } from "react";
+
 import { Link, useNavigate } from "react-router-dom";
 
 import AuthLayout from "../components/AuthLayout";
-import { useAuth } from "../context/AuthContext";
-import LOGO from '../assets/LOGO.png'
+
+import LOGO from "../assets/LOGO.png";
+
 import { toast } from "react-toastify";
 
+// FIREBASE IMPORTS
+
+import { auth, db } from "../firebase";
+
+import {
+    signInWithEmailAndPassword,
+} from "firebase/auth";
+
+import {
+    doc,
+    getDoc,
+} from "firebase/firestore";
+
+import { useAuth } from "../context/AuthContext";
+
+// FIREBASE SETUP
+
+
 const LoginForm = () => {
-    const { login } = useAuth();
 
     const navigate = useNavigate();
+    const { login } = useAuth();
 
     const [showPassword, setShowPassword] = useState(false);
 
@@ -19,62 +39,122 @@ const LoginForm = () => {
     });
 
     const handleChange = (e) => {
+
         setFormData({
             ...formData,
             [e.target.name]: e.target.value,
         });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
 
         e.preventDefault();
 
-        const response = login(formData);
+        // VALIDATION
 
-        // LOGIN FAILED
+        if (!formData.email.trim()) {
 
-        if (!response.success) {
-
-            toast.error(response.message);
+            toast.error("Email is required");
 
             return;
         }
 
-        // ADMIN
+        if (!formData.password.trim()) {
 
-        if (response.role === "admin") {
+            toast.error("Password is required");
 
-            toast.success("Admin Login Successful");
-
-            navigate("/admin");
+            return;
         }
 
-        // SELLER
+        try {
 
-        else if (response.role === "seller") {
+            // LOGIN USER
 
-            toast.success("Seller Login Successful");
+            const userCredential =
+                await signInWithEmailAndPassword(
+                    auth,
+                    formData.email,
+                    formData.password
+                );
 
-            navigate("/seller");
-        }
+            const user = userCredential.user;
 
-        // BUYER
+            // FETCH USER DATA FROM FIRESTORE
 
-        else {
+            const userRef = doc(db, "users", user.uid);
 
-            toast.success("Login Successful");
+            const userSnap = await getDoc(userRef);
 
-            navigate("/home");
+            // CHECK IF USER EXISTS
+
+            if (!userSnap.exists()) {
+
+                toast.error("User data not found");
+
+                return;
+            }
+
+            // GET USER DATA
+
+            const userData = userSnap.data();
+
+            console.log(userData);
+
+            // Login user in context
+            login({
+                email: formData.email,
+                password: formData.password,
+            });
+
+            // ADMIN
+
+            if (userData.role === "admin") {
+
+                toast.success("Admin Login Successful");
+
+                navigate("/admin");
+            }
+
+            // SELLER
+
+            else if (userData.role === "seller") {
+
+                toast.success("Seller Login Successful");
+
+                navigate("/seller");
+            }
+
+            // BUYER
+
+            else {
+
+                toast.success("Login Successful");
+
+                navigate("/home");
+            }
+
+        } catch (error) {
+
+            console.log(error);
+
+            toast.error(error.message);
         }
     };
 
     return (
         <AuthLayout>
+
             <form onSubmit={handleSubmit}>
-                <h1 className="logo"><img src={LOGO} alt="" /></h1>
+
+                <h1 className="logo">
+                    <img src={LOGO} alt="" />
+                </h1>
 
                 <div className="input-group">
-                    <label>Email <span className="required">*</span></label>
+
+                    <label>
+                        Email <span className="required">*</span>
+                    </label>
 
                     <input
                         type="email"
@@ -86,8 +166,12 @@ const LoginForm = () => {
                 </div>
 
                 <div className="password-box">
+
                     <div className="input-group">
-                        <label>Password <span className="required">*</span> </label>
+
+                        <label>
+                            Password <span className="required">*</span>
+                        </label>
 
                         <input
                             type={showPassword ? "text" : "password"}
@@ -100,7 +184,9 @@ const LoginForm = () => {
 
                     <span
                         className="eye-btn"
-                        onClick={() => setShowPassword(!showPassword)}
+                        onClick={() =>
+                            setShowPassword(!showPassword)
+                        }
                     >
                         👁
                     </span>
@@ -119,9 +205,17 @@ const LoginForm = () => {
                 </div>
 
                 <p className="bottom-link">
-                    Don't have account ? <Link to="/register">Register</Link>
+
+                    Don't have account ?
+
+                    <Link to="/register">
+                        Register
+                    </Link>
+
                 </p>
+
             </form>
+
         </AuthLayout>
     );
 };

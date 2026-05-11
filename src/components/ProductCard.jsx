@@ -1,108 +1,32 @@
-import { Star, Heart } from "lucide-react";
-
 import { useState } from "react";
-
-import { useCart } from "../context/CartContext";
+import ProductModal from "./ProductModal";
 
 const ProductCard = ({ product }) => {
-
-    const { addToCart } = useCart();
-
-    const [liked, setLiked] = useState(false);
+    const [showModal, setShowModal] = useState(false);
 
     return (
-
-        <div className="product-card">
-
-            {/* LIKE BUTTON */}
-
-
-            <button
-                className="like-btn"
-                onClick={() =>
-                    setLiked(!liked)
-                }
+        <>
+            {/* PINTEREST STYLE GRID - IMAGE ONLY */}
+            <div 
+                className="product-card-grid"
+                onClick={() => setShowModal(true)}
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    setShowModal(true);
+                }}
             >
-
-                <Heart
-                    size={18}
-                    strokeWidth={2}
-                    color="black"
-                    fill={
-                        liked
-                            ? "#ff2e63"
-                            : "transparent"
-                    }
+                <img
+                    src={product.image}
+                    alt={product.title}
+                    className="grid-image"
                 />
-
-            </button>
-            {/* IMAGE */}
-
-            <img
-                src={product.image}
-                alt=""
-            />
-
-            {/* DETAILS */}
-
-            <div className="pc-details">
-
-                <span>
-
-                    {/* TITLE */}
-
-                    <h3>
-
-                        {product.title}
-
-                    </h3>
-
-                    {/* PRICE + RATING */}
-
-                    <p>
-
-                        ₹ {product.price}
-
-                        <span className="product-rating">
-
-                            <Star
-                                size={14}
-                                fill="gold"
-                                color="gold"
-                            />
-
-                            {product.rating}
-
-                        </span>
-
-                    </p>
-
-                </span>
-
-                {/* ADD TO CART */}
-                <button
-                    className="add-to-cart"
-                    onClick={(e) => {
-
-                        e.target.classList.add("cart-click");
-
-                        setTimeout(() => {
-
-                            e.target.classList.remove("cart-click");
-
-                        }, 300);
-
-                        addToCart(product);
-                    }}
-                >
-
-                    Add To Cart
-
-                </button>
-
             </div>
 
-        </div>
+            {/* MODAL - OPENS ON CLICK/LONG PRESS/CONTEXT MENU */}
+            {showModal && (
+                <ProductModal product={product} onClose={() => setShowModal(false)} />
+            )}
+        </>
     );
 };
 

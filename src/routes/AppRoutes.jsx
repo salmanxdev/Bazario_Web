@@ -7,6 +7,7 @@ import AdminDashboard from "../pages/AdminDashboard";
 import HomePage from "../pages/HomePages";
 import CategoryPage from "../pages/CategoryPage";
 import FilterPage from "../pages/FilterPages";
+import ProfilePage from "../pages/ProfilePage";
 
 import MainLayout from "../layout/MainLayout";
 import SellerDashboard from "../pages/SellerDashboard";
@@ -45,6 +46,11 @@ const AppRoutes = () => {
             <Route
                 path="/cart"
                 element={<CartPage />}
+            />
+
+            <Route
+                path="/profile"
+                element={<ProfilePage />}
             />
 
             {/* MAIN LAYOUT */}

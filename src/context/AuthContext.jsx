@@ -1,10 +1,23 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
 
   const [user, setUser] = useState(null);
+
+  // Initialize user from localStorage on mount
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Error parsing stored user:", error);
+        localStorage.removeItem("user");
+      }
+    }
+  }, []);
 
   // LOGIN
 
@@ -63,6 +76,9 @@ export const AuthProvider = ({ children }) => {
       const loggedInUser = {
         email: data.email,
         role: storedUser.role,
+        firstName: storedUser.firstName,
+        lastName: storedUser.lastName,
+        phone: storedUser.phone,
       };
 
       localStorage.setItem(
@@ -96,6 +112,18 @@ export const AuthProvider = ({ children }) => {
       "registeredUser",
       JSON.stringify(data)
     );
+
+    // Set user in context
+    const newUser = {
+      email: data.email,
+      role: data.role,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      phone: data.phone,
+    };
+
+    localStorage.setItem("user", JSON.stringify(newUser));
+    setUser(newUser);
   };
 
   // LOGOUT

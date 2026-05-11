@@ -7,21 +7,25 @@ import { AuthProvider } from "./context/AuthContext";
 
 import { ToastContainer } from "react-toastify";
 import { CartProvider } from "./context/CartContext";
+import { LikesProvider } from "./context/LikesContext";
 import "react-toastify/dist/ReactToastify.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <AuthProvider>
-      <CartProvider>        
-        <App />
+      <CartProvider>
+        <LikesProvider>
+          <App />
 
-        {/* TOAST CONTAINER */}
+          {/* TOAST CONTAINER */}
 
-        <ToastContainer
-          position="top-right"
-          autoClose={2000}
-          theme="dark"
-        />
+          <ToastContainer
+            position="top-right"
+            autoClose={2000}
+            theme="dark"
+          />
+
+        </LikesProvider>
 
       </CartProvider>
 

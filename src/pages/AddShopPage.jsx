@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Store, Upload, ArrowLeft, Edit3 } from "lucide-react";
+import { Store, Upload, ArrowLeft, Edit3, Loader2 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { toast } from "react-toastify";
+import { showToast } from "../utils/toast";
 import { useAuth } from "../context/AuthContext";
 import { db, storage } from "../firebase";
-import { collection, addDoc, updateDoc, doc, getDocs, query, where } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, getDocs, query, where, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const AddShopPage = () => {
@@ -16,6 +16,7 @@ const AddShopPage = () => {
   const [imagePreview, setImagePreview] = useState(editShop?.shop_image || null);
   const [imageFile, setImageFile] = useState(null);
   const [myShops, setMyShops] = useState([]);
+  const [isLoadingShops, setIsLoadingShops] = useState(false);
 
   const [formData, setFormData] = useState({
     shopName: editShop?.shop_name || "",
@@ -34,11 +35,16 @@ const AddShopPage = () => {
   }, [user]);
 
   const fetchMyShops = async () => {
+    setIsLoadingShops(true);
     try {
       const q = query(collection(db, "shops"), where("sellerId", "==", user.uid));
       const snap = await getDocs(q);
       setMyShops(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error("Error fetching shops:", e);
+    } finally {
+      setIsLoadingShops(false);
+    }
   };
 
   const handleChange = (e) => {
@@ -49,6 +55,12 @@ const AddShopPage = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast.error("Image size should be less than 5MB");
+      return;
+    }
+
     setImageFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result);
@@ -57,75 +69,117 @@ const AddShopPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.shopName || !formData.location || !formData.email || !formData.phone) {
-      toast.error("Please fill in all required fields!");
+
+    if (!user?.uid) {
+      showToast.error("Please login to continue");
       return;
     }
+
+    if (!formData.shopName.trim() || !formData.location.trim() || !formData.email.trim() || !formData.phone.trim()) {
+      showToast.error("Please fill in all required fields!");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      let shopImageURL = editShop?.shop_image || "";
+      let shopImageURL = imagePreview;
+
       if (imageFile) {
         const imageRef = ref(storage, `shops/${user.uid}/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(imageRef, imageFile);
-        shopImageURL = await getDownloadURL(imageRef);
+        const uploadResult = await uploadBytes(imageRef, imageFile);
+        shopImageURL = await getDownloadURL(uploadResult.ref);
       }
-      const cats = formData.categories.split(",").map((c) => c.trim()).filter((c) => c);
+
+      if (!shopImageURL) {
+        showToast.error("Please upload a shop image");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const cats = formData.categories.split(",").map((c) => c.trim().toLowerCase()).filter((c) => c);
+
       const shopData = {
-        shop_name: formData.shopName, location: formData.location,
-        description: formData.description, email: formData.email, phone: formData.phone,
-        address: formData.address, categories: cats, shop_image: shopImageURL,
-        verified: false, trusted_seller: formData.trusted_seller,
-        fast_delivery: formData.fast_delivery, rating: editShop?.rating || 0,
-        reviews: editShop?.reviews || 0, sellerId: user.uid,
-        sellerName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        shop_name: formData.shopName.trim(),
+        location: formData.location.trim(),
+        description: (formData.description || "").trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        address: (formData.address || "").trim(),
+        categories: cats,
+        shop_image: shopImageURL,
+        verified: editShop?.verified || false,
+        trusted_seller: !!formData.trusted_seller,
+        fast_delivery: !!formData.fast_delivery,
+        rating: editShop?.rating || 4.5,
+        reviews: editShop?.reviews || 0,
+        sellerId: user.uid,
+        sellerName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Seller",
+        updatedAt: serverTimestamp()
       };
+
       if (editShop) {
         await updateDoc(doc(db, "shops", editShop.id), shopData);
-        toast.success("Shop updated!");
+        showToast.success("Shop updated successfully!");
       } else {
-        shopData.createdAt = new Date();
+        shopData.createdAt = serverTimestamp();
         await addDoc(collection(db, "shops"), shopData);
-        toast.success("Shop registered!");
+        showToast.success("Shop registered successfully!");
       }
       navigate("/seller");
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to save shop");
-    } finally { setIsSubmitting(false); }
+      console.error("Error saving shop:", error);
+      showToast.error(`Unable to add shop: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!user) return (
-    <div className="add-shop-page"><div className="access-denied">
-      <Store size={80} /><h2>Login Required</h2>
-      <button className="continue-btn" onClick={() => navigate("/")}>Go to Login</button>
-    </div></div>
+    <div className="add-shop-page">
+      <div className="access-denied" style={{ textAlign: 'center', padding: '100px' }}>
+        <Store size={80} color="#ccc" />
+        <h2>Login Required</h2>
+        <button className="continue-btn" onClick={() => navigate("/")} style={{ marginTop: '20px' }}>Go to Login</button>
+      </div>
+    </div>
   );
 
   if (user.role !== "seller") return (
-    <div className="add-shop-page"><div className="access-denied">
-      <Store size={80} /><h2>Seller Access Required</h2>
-      <button className="continue-btn" onClick={() => navigate("/home")}>Back to Home</button>
-    </div></div>
+    <div className="add-shop-page">
+      <div className="access-denied" style={{ textAlign: 'center', padding: '100px' }}>
+        <Store size={80} color="#ccc" />
+        <h2>Seller Access Required</h2>
+        <button className="continue-btn" onClick={() => navigate("/home")} style={{ marginTop: '20px' }}>Back to Home</button>
+      </div>
+    </div>
   );
 
   return (
-    <div className="add-shop-page">
-      <div className="add-shop-container">
-        <div className="shop-header">
-          <button className="back-btn" onClick={() => navigate("/seller")}><ArrowLeft size={20} /></button>
-          <h1><Store size={28} /> {editShop ? "Edit Shop" : "Add Your Shop"}</h1>
-          <p>{editShop ? "Update details" : "Start selling on Bazario"}</p>
+    <div className="add-shop-page" style={{ padding: "40px 20px", background: "#f8f9fa", minHeight: "100vh" }}>
+      <div className="add-shop-container" style={{ maxWidth: "700px", margin: "0 auto", background: "white", padding: "30px", borderRadius: "20px", boxShadow: "0 10px 30px rgba(0,0,0,0.05)" }}>
+        <div className="shop-header" style={{ textAlign: "center", marginBottom: "30px", position: "relative" }}>
+          <button className="back-btn" onClick={() => navigate("/seller")} style={{ position: "absolute", left: "0", top: "0", background: "none", border: "none", cursor: "pointer" }}>
+            <ArrowLeft size={24} />
+          </button>
+          <h1 style={{ fontSize: "24px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+            <Store size={28} color="#6c5ce7" />
+            {editShop ? "Edit Shop" : "Add Your Shop"}
+          </h1>
+          <p style={{ color: "#666" }}>{editShop ? "Update your shop details" : "Start selling on Bazario today"}</p>
         </div>
 
         {!editShop && myShops.length > 0 && (
-          <div className="existing-shops-section">
-            <h3>Your Shops</h3>
-            <div className="existing-shops-list">
+          <div className="existing-shops-section" style={{ marginBottom: "30px", padding: "15px", background: "#f9f9f9", borderRadius: "12px" }}>
+            <h3 style={{ fontSize: "16px", marginBottom: "15px", color: "#333" }}>Your Registered Shops</h3>
+            <div className="existing-shops-list" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {myShops.map((shop) => (
-                <div key={shop.id} className="existing-shop-item">
-                  <img src={shop.shop_image} alt={shop.shop_name} />
-                  <div><h4>{shop.shop_name}</h4><p>{shop.location}</p></div>
-                  <button className="edit-btn-small" onClick={() => navigate("/add-shop", { state: { editShop: shop } })}>
+                <div key={shop.id} className="existing-shop-item" style={{ display: "flex", align_items: "center", gap: "15px", background: "white", padding: "10px", borderRadius: "8px", border: "1px solid #eee" }}>
+                  <img src={shop.shop_image || "https://via.placeholder.com/50"} alt={shop.shop_name} style={{ width: "50px", height: "50px", borderRadius: "6px", objectFit: "cover" }} />
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: 0, fontSize: "14px" }}>{shop.shop_name}</h4>
+                    <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>{shop.location}</p>
+                  </div>
+                  <button onClick={() => navigate("/add-shop", { state: { editShop: shop } })} style={{ padding: "6px 12px", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px", background: "#f0f2f5", border: "none", borderRadius: "6px", cursor: "pointer" }}>
                     <Edit3 size={14} /> Edit
                   </button>
                 </div>
@@ -134,28 +188,65 @@ const AddShopPage = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="shop-form">
+        <form onSubmit={handleSubmit} className="shop-form" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div className="form-upload">
-            <label>Shop Image</label>
-            <div className="upload-area" onClick={() => document.getElementById("shopImage").click()}>
-              {imagePreview ? <img src={imagePreview} alt="Preview" className="shop-image-preview" /> : <><Upload size={32} /><p>Click to upload</p></>}
+            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Shop Logo/Image</label>
+            <div className="upload-area" onClick={() => document.getElementById("shopImage").click()} style={{ width: "100%", height: "200px", border: "2px dashed #ddd", borderRadius: "12px", display: "flex", flex_direction: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", background: "#fcfcfc" }}>
+              {imagePreview ? <img src={imagePreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <><Upload size={32} color="#888" /><p style={{ color: "#888", marginTop: "10px" }}>Click to upload image</p></>}
               <input type="file" id="shopImage" accept="image/*" onChange={handleImageChange} style={{ display: "none" }} />
             </div>
           </div>
-          <div className="form-group"><label>Shop Name *</label><input type="text" name="shopName" value={formData.shopName} onChange={handleChange} placeholder="Shop name" required /></div>
-          <div className="form-group"><label>Location *</label><input type="text" name="location" value={formData.location} onChange={handleChange} placeholder="City, Area" required /></div>
-          <div className="form-group"><label>Categories (comma-separated)</label><input type="text" name="categories" value={formData.categories} onChange={handleChange} placeholder="Electronics, Gadgets" /></div>
-          <div className="form-group"><label>Description</label><textarea name="description" value={formData.description} onChange={handleChange} placeholder="About your shop" rows="3" /></div>
-          <div className="form-row">
-            <div className="form-group"><label>Email *</label><input type="email" name="email" value={formData.email} onChange={handleChange} required /></div>
-            <div className="form-group"><label>Phone *</label><input type="tel" name="phone" value={formData.phone} onChange={handleChange} required /></div>
+
+          <div className="form-group">
+            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Shop Name *</label>
+            <input type="text" name="shopName" value={formData.shopName} onChange={handleChange} placeholder="Enter shop name" required style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px" }} />
           </div>
-          <div className="form-group"><label>Address</label><textarea name="address" value={formData.address} onChange={handleChange} rows="2" /></div>
-          <div className="form-checkboxes">
-            <label className="checkbox-label"><input type="checkbox" name="trusted_seller" checked={formData.trusted_seller} onChange={handleChange} /><span>Trusted Seller</span></label>
-            <label className="checkbox-label"><input type="checkbox" name="fast_delivery" checked={formData.fast_delivery} onChange={handleChange} /><span>Fast Delivery</span></label>
+
+          <div className="form-group">
+            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Location *</label>
+            <input type="text" name="location" value={formData.location} onChange={handleChange} placeholder="City, Area" required style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px" }} />
           </div>
-          <button type="submit" className="submit-btn" disabled={isSubmitting}>{isSubmitting ? "Saving..." : editShop ? "Update Shop" : "Register Shop"}</button>
+
+          <div className="form-group">
+            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Categories (comma-separated, e.g., Vegetable, Fruit, Kirana)</label>
+            <input type="text" name="categories" value={formData.categories} onChange={handleChange} placeholder="Vegetable, Fruit, Kirana, Furniture, Medical" style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px" }} />
+          </div>
+
+          <div className="form-group">
+            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Description</label>
+            <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Tell customers about your shop" rows="3" style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px", resize: "vertical" }} />
+          </div>
+
+          <div className="form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+            <div className="form-group">
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Email *</label>
+              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Contact email" required style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px" }} />
+            </div>
+            <div className="form-group">
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Phone *</label>
+              <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="Contact phone" required style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px" }} />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Full Address</label>
+            <textarea name="address" value={formData.address} onChange={handleChange} placeholder="Complete shop address" rows="2" style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px", resize: "vertical" }} />
+          </div>
+
+          <div className="form-checkboxes" style={{ display: "flex", gap: "20px", margin: "10px 0" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", cursor: "pointer" }}>
+              <input type="checkbox" name="trusted_seller" checked={formData.trusted_seller} onChange={handleChange} />
+              <span>Trusted Seller</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", cursor: "pointer" }}>
+              <input type="checkbox" name="fast_delivery" checked={formData.fast_delivery} onChange={handleChange} />
+              <span>Fast Delivery</span>
+            </label>
+          </div>
+
+          <button type="submit" className="submit-btn" disabled={isSubmitting} style={{ background: "#6c5ce7", color: "white", border: "none", padding: "16px", borderRadius: "12px", fontSize: "16px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", transition: "0.3s", marginTop: "10px" }}>
+            {isSubmitting ? <><Loader2 className="animate-spin" /> Saving...</> : editShop ? "Update Shop" : "Register Shop"}
+          </button>
         </form>
       </div>
     </div>

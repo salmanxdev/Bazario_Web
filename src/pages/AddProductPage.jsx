@@ -2,10 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { db, storage } from "../firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { ArrowLeft, Upload, Package } from "lucide-react";
-import { toast } from "react-toastify";
+import { ArrowLeft, Upload, Package, Loader2 } from "lucide-react";
+import { showToast } from "../utils/toast";
 
 const AddProductPage = () => {
   const navigate = useNavigate();
@@ -31,6 +31,11 @@ const AddProductPage = () => {
     "toys-games",
     "clothing",
     "groceries",
+    "vegetable",
+    "fruit",
+    "medical",
+    "furniture",
+    "kirana"
   ];
 
   const handleChange = (e) => {
@@ -41,6 +46,11 @@ const AddProductPage = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast.error("Image size should be less than 5MB");
+      return;
+    }
 
     setImageFile(file);
     const reader = new FileReader();
@@ -53,52 +63,68 @@ const AddProductPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.price || !formData.category) {
-      toast.error("Please fill in all required fields");
+    if (!user?.uid) {
+      showToast.error("Authentication error. Please login again.");
+      return;
+    }
+
+    if (!formData.title.trim() || !formData.price || !formData.category) {
+      showToast.error("Please fill in all required fields");
+      return;
+    }
+
+    const priceNum = Number(formData.price);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      showToast.error("Please enter a valid price");
       return;
     }
 
     if (!imageFile) {
-      toast.error("Please upload a product image");
+      showToast.error("Please upload a product image");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Upload image to Firebase Storage
+      // 1. Upload image to Firebase Storage
       const imageRef = ref(
         storage,
         `products/${user.uid}/${Date.now()}_${imageFile.name}`
       );
-      await uploadBytes(imageRef, imageFile);
-      const imageURL = await getDownloadURL(imageRef);
 
-      // Save product to Firestore
-      await addDoc(collection(db, "products"), {
-        title: formData.title,
-        price: Number(formData.price),
+      const uploadResult = await uploadBytes(imageRef, imageFile);
+      const imageURL = await getDownloadURL(uploadResult.ref);
+
+      const sellerName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Seller";
+
+      // 2. Save product to Firestore
+      const productData = {
+        title: formData.title.trim(),
+        price: priceNum,
         category: formData.category,
-        description: formData.description,
+        description: (formData.description || "").trim(),
         image: imageURL,
         rating: 0,
         sellerId: user.uid,
-        sellerName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Seller",
+        sellerName: sellerName,
         seller: {
-          name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Seller",
-          email: user.email,
+          name: sellerName,
+          email: user.email || "",
           phone: user.phone || "",
           verified: true,
           rating: 4.5,
         },
-        createdAt: new Date(),
-      });
+        createdAt: serverTimestamp(),
+      };
 
-      toast.success("Product added successfully!");
+      await addDoc(collection(db, "products"), productData);
+
+      showToast.success("Product added successfully!");
       navigate("/seller");
     } catch (error) {
-      console.error("Error adding product:", error);
-      toast.error("Failed to add product");
+      console.error("Detailed error adding product:", error);
+      showToast.error(`Unable to add product: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -107,11 +133,11 @@ const AddProductPage = () => {
   if (!user || user.role !== "seller") {
     return (
       <div className="add-product-page">
-        <div className="access-denied">
-          <Package size={80} />
+        <div className="access-denied" style={{ textAlign: "center", padding: "100px 20px" }}>
+          <Package size={80} color="#ccc" style={{ marginBottom: "20px" }} />
           <h2>Seller Access Required</h2>
           <p>Only sellers can add products</p>
-          <button className="continue-btn" onClick={() => navigate("/home")}>
+          <button className="continue-btn" onClick={() => navigate("/home")} style={{ marginTop: "20px" }}>
             Back to Home
           </button>
         </div>
@@ -120,91 +146,54 @@ const AddProductPage = () => {
   }
 
   return (
-    <div className="add-product-page">
-      <div className="add-product-container">
-        <div className="add-product-header">
-          <button className="back-btn" onClick={() => navigate("/seller")}>
-            <ArrowLeft size={20} />
+    <div className="add-product-page" style={{ padding: "40px 20px", background: "#f8f9fa", minHeight: "100vh" }}>
+      <div className="add-product-container" style={{ maxWidth: "700px", margin: "0 auto", background: "white", padding: "30px", borderRadius: "20px", boxShadow: "0 10px 30px rgba(0,0,0,0.05)" }}>
+        <div className="add-product-header" style={{ textAlign: "center", marginBottom: "30px" }}>
+          <button className="back-btn" onClick={() => navigate("/seller")} style={{ position: "absolute", left: "20px", top: "20px", background: "none", border: "none", cursor: "pointer" }}>
+            <ArrowLeft size={24} />
           </button>
-          <h1>
-            <Package size={28} />
+          <h1 style={{ fontSize: "24px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+            <Package size={28} color="#6c5ce7" />
             Add New Product
           </h1>
-          <p>List your product on Bazario</p>
+          <p style={{ color: "#666" }}>List your product on Bazario</p>
         </div>
 
         <form onSubmit={handleSubmit} className="product-form">
-          {/* IMAGE UPLOAD */}
-          <div className="image-upload-section">
-            <label className="image-upload-area" htmlFor="productImage">
+          <div className="image-upload-section" style={{ marginBottom: "25px" }}>
+            <label className="image-upload-area" htmlFor="productImage" style={{ width: "100%", height: "250px", border: "2px dashed #ddd", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", background: "#fcfcfc" }}>
               {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="image-preview"
-                />
+                <img src={imagePreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               ) : (
-                <div className="upload-placeholder">
-                  <Upload size={40} />
+                <div className="upload-placeholder" style={{ textAlign: "center", color: "#888" }}>
+                  <Upload size={40} style={{ marginBottom: "10px" }} />
                   <p>Click to upload product image</p>
-                  <span>JPG, PNG up to 5MB</span>
+                  <span style={{ fontSize: "12px" }}>JPG, PNG up to 5MB</span>
                 </div>
               )}
-              <input
-                type="file"
-                id="productImage"
-                accept="image/*"
-                onChange={handleImageChange}
-                hidden
-              />
+              <input type="file" id="productImage" accept="image/*" onChange={handleImageChange} hidden />
             </label>
           </div>
 
-          <div className="form-fields">
+          <div className="form-fields" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <div className="form-group">
-              <label htmlFor="title">Product Title *</label>
-              <input
-                type="text"
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                placeholder="Enter product title"
-                required
-              />
+              <label htmlFor="title" style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Product Title *</label>
+              <input type="text" id="title" name="title" value={formData.title} onChange={handleChange} placeholder="Enter product title" required style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px" }} />
             </div>
 
-            <div className="form-row">
+            <div className="form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
               <div className="form-group">
-                <label htmlFor="price">Price (₹) *</label>
-                <input
-                  type="number"
-                  id="price"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="1"
-                  required
-                />
+                <label htmlFor="price" style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Price (₹) *</label>
+                <input type="number" id="price" name="price" value={formData.price} onChange={handleChange} placeholder="0" min="1" required style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px" }} />
               </div>
 
               <div className="form-group">
-                <label htmlFor="category">Category *</label>
-                <select
-                  id="category"
-                  name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  required
-                >
+                <label htmlFor="category" style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Category *</label>
+                <select id="category" name="category" value={formData.category} onChange={handleChange} required style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px", background: "white" }}>
                   <option value="">Select category</option>
                   {categories.map((cat) => (
                     <option key={cat} value={cat}>
-                      {cat
-                        .split("-")
-                        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                        .join(" ")}
+                      {cat.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
                     </option>
                   ))}
                 </select>
@@ -212,23 +201,12 @@ const AddProductPage = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="description">Description</label>
-              <textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                placeholder="Describe your product..."
-                rows="4"
-              />
+              <label htmlFor="description" style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Description</label>
+              <textarea id="description" name="description" value={formData.description} onChange={handleChange} placeholder="Describe your product..." rows="4" style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "15px", resize: "vertical" }} />
             </div>
 
-            <button
-              type="submit"
-              className="submit-product-btn"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Publishing..." : "Publish Product"}
+            <button type="submit" className="submit-product-btn" disabled={isSubmitting} style={{ background: "#6c5ce7", color: "white", border: "none", padding: "16px", borderRadius: "12px", fontSize: "16px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", transition: "0.3s", marginTop: "10px" }}>
+              {isSubmitting ? <><Loader2 className="animate-spin" /> Publishing...</> : "Publish Product"}
             </button>
           </div>
         </form>

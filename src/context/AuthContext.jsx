@@ -1,158 +1,105 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { auth, db } from "../firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Initialize user from localStorage on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error("Error parsing stored user:", error);
-        localStorage.removeItem("user");
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userRef = doc(db, "users", firebaseUser.uid);
+          const userSnap = await getDoc(userRef);
+
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              firstName: userData.firstName || "",
+              lastName: userData.lastName || "",
+              phone: userData.phone || "",
+              role: userData.role || "buyer",
+              photoURL: userData.photoURL || "",
+              walletBalance: userData.walletBalance || 0,
+            });
+          } else {
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              role: "buyer",
+              firstName: "",
+              lastName: "",
+              phone: "",
+              photoURL: "",
+              walletBalance: 0,
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            role: "buyer",
+          });
+        }
+      } else {
+        setUser(null);
       }
-    }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // LOGIN
-
-  const login = (data) => {
-
-    console.log("Login Data:", data);
-
-    // GET REGISTERED USER
-
-    const storedUser = JSON.parse(
-      localStorage.getItem("registeredUser")
-    );
-
-    // IF NO USER EXISTS
-
-    if (!storedUser) {
-
-      return {
-        success: false,
-        message: "No account found",
-      };
+  // Refresh user data from Firestore
+  const refreshUser = async () => {
+    if (!auth.currentUser) return;
+    try {
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        setUser((prev) => ({
+          ...prev,
+          ...userData,
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email,
+        }));
+      }
+    } catch (error) {
+      console.error("Error refreshing user:", error);
     }
-
-    // ADMIN LOGIN
-
-    if (
-      data.email === "admin@gmail.com" &&
-      data.password === "Admin@123"
-    ) {
-
-      const adminUser = {
-        email: data.email,
-        role: "admin",
-      };
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify(adminUser)
-      );
-
-      setUser(adminUser);
-
-      return {
-        success: true,
-        role: "admin",
-      };
-    }
-
-    // BUYER / SELLER LOGIN
-
-    if (
-      data.email === storedUser.email &&
-      data.password === storedUser.password
-    ) {
-
-      const loggedInUser = {
-        email: data.email,
-        role: storedUser.role,
-        firstName: storedUser.firstName,
-        lastName: storedUser.lastName,
-        phone: storedUser.phone,
-      };
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify(loggedInUser)
-      );
-
-      setUser(loggedInUser);
-
-      return {
-        success: true,
-        role: storedUser.role,
-      };
-    }
-
-    // INVALID LOGIN
-
-    return {
-      success: false,
-      message: "Invalid Email or Password",
-    };
   };
 
-  // REGISTER
-
-  const register = (data) => {
-
-    console.log("Register Data:", data);
-
-    localStorage.setItem(
-      "registeredUser",
-      JSON.stringify(data)
-    );
-
-    // Set user in context
-    const newUser = {
-      email: data.email,
-      role: data.role,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone,
-    };
-
-    localStorage.setItem("user", JSON.stringify(newUser));
-    setUser(newUser);
-  };
-
-  // LOGOUT
-
-  const logout = () => {
-
-    localStorage.removeItem("user");
-
-    setUser(null);
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   return (
-
     <AuthContext.Provider
       value={{
         user,
-        login,
-        register,
+        loading,
         logout,
+        refreshUser,
       }}
     >
-
       {children}
-
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => {
-
   return useContext(AuthContext);
 };

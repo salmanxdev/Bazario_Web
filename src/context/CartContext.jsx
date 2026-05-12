@@ -6,238 +6,102 @@ import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
+  const [cartItems, setCartItems] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
-    const [cartItems, setCartItems] = useState([]);
-    const [orders, setOrders] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const { user } = useAuth();
+  useEffect(() => {
+    if (user?.uid) {
+      loadCartFromDatabase();
+      loadOrdersFromDatabase();
+    } else {
+      setCartItems([]);
+      setOrders([]);
+    }
+  }, [user]);
 
-    // Load cart and orders from Firestore when user logs in
-    useEffect(() => {
-        if (user && user.email) {
-            loadCartFromDatabase();
-            loadOrdersFromDatabase();
-        } else {
-            setCartItems([]);
-            setOrders([]);
-        }
-    }, [user]);
+  const getUserRef = () => doc(db, "userData", user.uid);
 
-    const loadCartFromDatabase = async () => {
-        try {
-            setLoading(true);
-            const userRef = doc(db, "users", user.email);
-            const userSnap = await getDoc(userRef);
+  const loadCartFromDatabase = async () => {
+    try {
+      setLoading(true);
+      const snap = await getDoc(getUserRef());
+      setCartItems(snap.exists() ? snap.data().cart || [] : []);
+    } catch (e) { console.error("Cart load error:", e); setCartItems([]); }
+    finally { setLoading(false); }
+  };
 
-            if (userSnap.exists()) {
-                const data = userSnap.data();
-                setCartItems(data.cart || []);
-            } else {
-                setCartItems([]);
-            }
-        } catch (error) {
-            console.error("Error loading cart:", error);
-            setCartItems([]);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const loadOrdersFromDatabase = async () => {
+    try {
+      const snap = await getDoc(getUserRef());
+      setOrders(snap.exists() ? snap.data().orders || [] : []);
+    } catch (e) { console.error("Orders load error:", e); setOrders([]); }
+  };
 
-    const loadOrdersFromDatabase = async () => {
-        try {
-            const userRef = doc(db, "users", user.email);
-            const userSnap = await getDoc(userRef);
+  const saveToDb = async (data) => {
+    if (!user?.uid) return;
+    try {
+      const ref = getUserRef();
+      await updateDoc(ref, data).catch(async (err) => {
+        if (err.code === "not-found") {
+          await setDoc(ref, { uid: user.uid, ...data });
+        } else throw err;
+      });
+    } catch (e) { console.error("DB save error:", e); }
+  };
 
-            if (userSnap.exists()) {
-                const data = userSnap.data();
-                setOrders(data.orders || []);
-            } else {
-                setOrders([]);
-            }
-        } catch (error) {
-            console.error("Error loading orders:", error);
-            setOrders([]);
-        }
-    };
+  const generateOrderNumber = () => {
+    const ts = Date.now().toString().slice(-8);
+    const rnd = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+    return `ORD-${ts}-${rnd}`;
+  };
 
-    // Generate unique order number
-    const generateOrderNumber = () => {
-        const timestamp = Date.now().toString().slice(-8);
-        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        return `ORD-${timestamp}-${random}`;
-    };
+  const addToCart = async (product) => {
+    if (!user) return;
+    const existing = cartItems.find((i) => i.id === product.id);
+    let updated;
+    if (existing) {
+      updated = cartItems.map((i) => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+    } else {
+      updated = [...cartItems, { ...product, quantity: 1 }];
+    }
+    setCartItems(updated);
+    await saveToDb({ cart: updated });
+  };
 
-    // ADD TO CART
+  const removeFromCart = async (id) => {
+    const updated = cartItems.filter((i) => i.id !== id);
+    setCartItems(updated);
+    await saveToDb({ cart: updated });
+  };
 
-    const addToCart = async (product) => {
+  const placeOrder = async (orderDetails) => {
+    if (!user?.uid) return null;
+    try {
+      const newOrder = {
+        orderNumber: generateOrderNumber(),
+        items: cartItems,
+        totalAmount: orderDetails.totalAmount,
+        status: "Confirmed",
+        date: new Date().toISOString(),
+        estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        paymentId: orderDetails.paymentId || "",
+        shippingAddress: orderDetails.shippingAddress || "",
+      };
+      const updatedOrders = [...orders, newOrder];
+      setOrders(updatedOrders);
+      setCartItems([]);
+      await saveToDb({ orders: updatedOrders, cart: [] });
+      return newOrder;
+    } catch (e) { console.error("Order error:", e); return null; }
+  };
 
-        // CHECK IF USER IS LOGGED IN
-        if (!user) {
-            console.warn("User not logged in. Cannot add to cart.");
-            return;
-        }
-
-        // CHECK PRODUCT EXISTS
-
-        const existingProduct = cartItems.find(
-
-            (item) => item.id === product.id
-        );
-
-        let updatedCart;
-
-        // IF EXISTS
-
-        if (existingProduct) {
-
-            updatedCart = cartItems.map((item) =>
-
-                item.id === product.id
-
-                    ? {
-                        ...item,
-                        quantity: item.quantity + 1,
-                    }
-
-                    : item
-            );
-
-            setCartItems(updatedCart);
-
-        } else {
-
-            // NEW PRODUCT
-
-            updatedCart = [
-
-                ...cartItems,
-
-                {
-                    ...product,
-                    quantity: 1,
-                },
-            ];
-
-            setCartItems(updatedCart);
-        }
-
-        // Save to Firestore if user is logged in
-        if (user && user.email) {
-            try {
-                const userRef = doc(db, "users", user.email);
-                await updateDoc(userRef, {
-                    cart: updatedCart,
-                }).catch(async (error) => {
-                    if (error.code === "not-found") {
-                        await setDoc(userRef, {
-                            email: user.email,
-                            cart: updatedCart,
-                        });
-                    } else {
-                        throw error;
-                    }
-                });
-            } catch (error) {
-                console.error("Error saving cart:", error);
-            }
-        }
-    };
-
-    // REMOVE PRODUCT
-
-    const removeFromCart = async (id) => {
-
-        const updatedCart = cartItems.filter(
-
-            (item) => item.id !== id
-        );
-
-        setCartItems(updatedCart);
-
-        // Save to Firestore if user is logged in
-        if (user && user.email) {
-            try {
-                const userRef = doc(db, "users", user.email);
-                await updateDoc(userRef, {
-                    cart: updatedCart,
-                });
-            } catch (error) {
-                console.error("Error removing from cart:", error);
-            }
-        }
-    };
-
-    // PLACE ORDER
-    const placeOrder = async (orderDetails) => {
-        if (!user || !user.email) return null;
-
-        try {
-            const orderNumber = generateOrderNumber();
-            const newOrder = {
-                orderNumber,
-                items: cartItems,
-                totalAmount: orderDetails.totalAmount,
-                status: "Confirmed",
-                date: new Date().toISOString(),
-                estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
-                shippingAddress: orderDetails.shippingAddress,
-                ...orderDetails,
-            };
-
-            const updatedOrders = [...orders, newOrder];
-            setOrders(updatedOrders);
-
-            // Save to Firestore
-            const userRef = doc(db, "users", user.email);
-            await updateDoc(userRef, {
-                orders: updatedOrders,
-                cart: [], // Clear cart after order
-            }).catch(async (error) => {
-                if (error.code === "not-found") {
-                    await setDoc(userRef, {
-                        email: user.email,
-                        orders: updatedOrders,
-                        cart: [],
-                    });
-                } else {
-                    throw error;
-                }
-            });
-
-            setCartItems([]); // Clear local cart
-            return newOrder;
-        } catch (error) {
-            console.error("Error placing order:", error);
-            return null;
-        }
-    };
-
-    // GET ORDERS
-    const getOrders = () => {
-        return orders;
-    };
-
-    return (
-
-        <CartContext.Provider
-            value={{
-                cartItems,
-                orders,
-                addToCart,
-                removeFromCart,
-                placeOrder,
-                getOrders,
-                loading,
-            }}
-        >
-
-            {children}
-
-        </CartContext.Provider>
-    );
+  return (
+    <CartContext.Provider value={{ cartItems, orders, addToCart, removeFromCart, placeOrder, loading }}>
+      {children}
+    </CartContext.Provider>
+  );
 };
 
-export const useCart = () => {
-
-    return useContext(CartContext);
-};
+export const useCart = () => useContext(CartContext);

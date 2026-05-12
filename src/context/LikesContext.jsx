@@ -10,100 +10,47 @@ export const LikesProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
-  // Load likes from Firestore when user logs in
   useEffect(() => {
-    if (user && user.email) {
-      loadLikesFromDatabase();
-    } else {
-      setLikedProducts([]);
-    }
+    if (user?.uid) { loadLikes(); }
+    else { setLikedProducts([]); }
   }, [user]);
 
-  const loadLikesFromDatabase = async () => {
+  const getUserRef = () => doc(db, "userData", user.uid);
+
+  const loadLikes = async () => {
     try {
       setLoading(true);
-      // For now, we'll use email as the key since we're not using Firebase Auth properly
-      // In production, use user.uid from Firebase Auth
-      const userRef = doc(db, "users", user.email);
-      const userSnap = await getDoc(userRef);
-
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        setLikedProducts(data.likes || []);
-      } else {
-        setLikedProducts([]);
-      }
-    } catch (error) {
-      console.error("Error loading likes:", error);
-      setLikedProducts([]);
-    } finally {
-      setLoading(false);
-    }
+      const snap = await getDoc(getUserRef());
+      setLikedProducts(snap.exists() ? snap.data().likes || [] : []);
+    } catch (e) { console.error("Likes load error:", e); setLikedProducts([]); }
+    finally { setLoading(false); }
   };
 
   const toggleLike = async (product) => {
-    if (!user) {
-      alert("Please login first");
-      return;
-    }
-
+    if (!user) { alert("Please login first"); return; }
     try {
-      const isLiked = likedProducts.some((item) => item.id === product.id);
-      let updatedLikes;
-
-      if (isLiked) {
-        // Remove from likes
-        updatedLikes = likedProducts.filter((item) => item.id !== product.id);
-      } else {
-        // Add to likes
-        updatedLikes = [...likedProducts, product];
-      }
-
-      setLikedProducts(updatedLikes);
-
-      // Save to Firestore
-      const userRef = doc(db, "users", user.email);
-      await updateDoc(userRef, {
-        likes: updatedLikes,
-      }).catch(async (error) => {
-        if (error.code === "not-found") {
-          // Document doesn't exist, create it
-          await setDoc(userRef, {
-            email: user.email,
-            likes: updatedLikes,
-          });
-        } else {
-          throw error;
-        }
+      const liked = likedProducts.some((i) => i.id === product.id);
+      const updated = liked
+        ? likedProducts.filter((i) => i.id !== product.id)
+        : [...likedProducts, product];
+      setLikedProducts(updated);
+      const ref = getUserRef();
+      await updateDoc(ref, { likes: updated }).catch(async (err) => {
+        if (err.code === "not-found") {
+          await setDoc(ref, { uid: user.uid, likes: updated });
+        } else throw err;
       });
-    } catch (error) {
-      console.error("Error updating likes:", error);
-    }
+    } catch (e) { console.error("Like toggle error:", e); }
   };
 
-  const isLiked = (productId) => {
-    return likedProducts.some((item) => item.id === productId);
-  };
-
-  const getLikedCount = () => {
-    return likedProducts.length;
-  };
+  const isLiked = (productId) => likedProducts.some((i) => i.id === productId);
+  const getLikedCount = () => likedProducts.length;
 
   return (
-    <LikesContext.Provider
-      value={{
-        likedProducts,
-        toggleLike,
-        isLiked,
-        getLikedCount,
-        loading,
-      }}
-    >
+    <LikesContext.Provider value={{ likedProducts, toggleLike, isLiked, getLikedCount, loading }}>
       {children}
     </LikesContext.Provider>
   );
 };
 
-export const useLikes = () => {
-  return useContext(LikesContext);
-};
+export const useLikes = () => useContext(LikesContext);

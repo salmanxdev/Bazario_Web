@@ -1,47 +1,75 @@
-import React, { useState, useMemo } from 'react';
-import { ArrowLeft, MapPin, Star, Users, Zap, CheckCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import shops from '../utils/shops';
-import { showToast } from '../utils/toast';
+import { useState, useEffect, useMemo } from "react";
+import {
+  ArrowLeft,
+  MapPin,
+  Star,
+  Users,
+  Zap,
+  CheckCircle,
+  Search,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { db } from "../firebase";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { showToast } from "../utils/toast";
 
 const ShopsPage = () => {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('rating');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("rating");
   const [filterTrusted, setFilterTrusted] = useState(false);
+  const [shops, setShops] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Filter and sort shops
+  useEffect(() => {
+    fetchShops();
+  }, []);
+
+  const fetchShops = async () => {
+    try {
+      setLoading(true);
+      const shopsRef = collection(db, "shops");
+      const q = query(shopsRef, orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+
+      const shopsData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setShops(shopsData);
+    } catch (error) {
+      console.error("Error fetching shops:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredShops = useMemo(() => {
-    let result = shops.filter(shop => {
-      const matchesSearch = 
-        shop.shop_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shop.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shop.categories.some(cat => cat.toLowerCase().includes(searchTerm.toLowerCase()));
-      
+    let result = shops.filter((shop) => {
+      const matchesSearch =
+        shop.shop_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shop.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shop.categories?.some((cat) =>
+          cat.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
       const matchesTrusted = !filterTrusted || shop.trusted_seller;
-      
+
       return matchesSearch && matchesTrusted;
     });
 
-    // Sort
-    if (sortBy === 'rating') {
-      result.sort((a, b) => b.rating - a.rating);
-    } else if (sortBy === 'distance') {
-      result.sort((a, b) => {
-        const distA = parseInt(a.distance);
-        const distB = parseInt(b.distance);
-        return distA - distB;
-      });
-    } else if (sortBy === 'reviews') {
-      result.sort((a, b) => b.reviews - a.reviews);
+    if (sortBy === "rating") {
+      result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } else if (sortBy === "reviews") {
+      result.sort((a, b) => (b.reviews || 0) - (a.reviews || 0));
     }
 
     return result;
-  }, [searchTerm, sortBy, filterTrusted]);
+  }, [shops, searchTerm, sortBy, filterTrusted]);
 
   const handleVisitShop = (shopName) => {
     showToast.success(`Visiting ${shopName}...`);
-    // Navigate to shop or trigger shop view
   };
 
   return (
@@ -49,10 +77,7 @@ const ShopsPage = () => {
       <div className="shops-container">
         {/* HEADER */}
         <div className="shops-header">
-          <button 
-            className="back-btn"
-            onClick={() => navigate("/home")}
-          >
+          <button className="back-btn" onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />
           </button>
           <div className="shops-header-content">
@@ -64,6 +89,7 @@ const ShopsPage = () => {
         {/* FILTERS AND SEARCH */}
         <div className="shops-controls">
           <div className="search-section">
+            <Search size={18} className="search-icon-inline" />
             <input
               type="text"
               placeholder="Search shops by name, location, or category..."
@@ -76,13 +102,12 @@ const ShopsPage = () => {
           <div className="filter-section">
             <div className="sort-control">
               <label>Sort By:</label>
-              <select 
+              <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="sort-select"
               >
                 <option value="rating">Highest Rating</option>
-                <option value="distance">Nearest First</option>
                 <option value="reviews">Most Reviewed</option>
               </select>
             </div>
@@ -99,11 +124,27 @@ const ShopsPage = () => {
         </div>
 
         {/* SHOPS GRID */}
-        {filteredShops.length === 0 ? (
+        {loading ? (
+          <div className="shops-grid">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="shop-card skeleton-shop">
+                <div className="skeleton-image" />
+                <div className="shop-info">
+                  <div className="skeleton-text" />
+                  <div className="skeleton-text short" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filteredShops.length === 0 ? (
           <div className="empty-shops">
             <Users size={64} />
             <h2>No Shops Found</h2>
-            <p>Try adjusting your search or filters</p>
+            <p>
+              {shops.length === 0
+                ? "No shops have been registered yet"
+                : "Try adjusting your search or filters"}
+            </p>
           </div>
         ) : (
           <div className="shops-grid">
@@ -111,12 +152,12 @@ const ShopsPage = () => {
               <div key={shop.id} className="shop-card">
                 {/* SHOP IMAGE */}
                 <div className="shop-image-container">
-                  <img 
-                    src={shop.shop_image} 
+                  <img
+                    src={shop.shop_image}
                     alt={shop.shop_name}
                     className="shop-image"
                   />
-                  
+
                   {/* BADGES */}
                   <div className="shop-badges">
                     {shop.verified && (
@@ -131,24 +172,21 @@ const ShopsPage = () => {
                       </span>
                     )}
                     {shop.fast_delivery && (
-                      <span className="badge fast-delivery" title="Fast Delivery">
+                      <span
+                        className="badge fast-delivery"
+                        title="Fast Delivery"
+                      >
                         <Zap size={14} />
                         Fast
                       </span>
                     )}
-                  </div>
-
-                  {/* DISTANCE */}
-                  <div className="shop-distance">
-                    <MapPin size={14} />
-                    {shop.distance}
                   </div>
                 </div>
 
                 {/* SHOP INFO */}
                 <div className="shop-info">
                   <h3 className="shop-name">{shop.shop_name}</h3>
-                  
+
                   <p className="shop-location">
                     <MapPin size={14} />
                     {shop.location}
@@ -158,7 +196,7 @@ const ShopsPage = () => {
 
                   {/* CATEGORIES */}
                   <div className="shop-categories">
-                    {shop.categories.map((category, idx) => (
+                    {shop.categories?.map((category, idx) => (
                       <span key={idx} className="category-tag">
                         {category}
                       </span>
@@ -170,14 +208,16 @@ const ShopsPage = () => {
                     <div className="rating-section">
                       <span className="rating">
                         <Star size={16} fill="#ffc107" color="#ffc107" />
-                        {shop.rating}
+                        {shop.rating || "New"}
                       </span>
-                      <span className="reviews">({shop.reviews} reviews)</span>
+                      <span className="reviews">
+                        ({shop.reviews || 0} reviews)
+                      </span>
                     </div>
                   </div>
 
                   {/* VISIT BUTTON */}
-                  <button 
+                  <button
                     className="visit-shop-btn"
                     onClick={() => handleVisitShop(shop.shop_name)}
                   >
@@ -191,7 +231,9 @@ const ShopsPage = () => {
 
         {/* RESULTS COUNT */}
         <div className="shops-footer">
-          <p>Showing {filteredShops.length} of {shops.length} shops</p>
+          <p>
+            Showing {filteredShops.length} of {shops.length} shops
+          </p>
         </div>
       </div>
     </div>

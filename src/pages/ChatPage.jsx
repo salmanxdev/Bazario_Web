@@ -1,299 +1,170 @@
-import { useState, useEffect } from "react";
-
-import {
-  Send,
-  ArrowLeft,
-  Phone,
-  Video,
-  Info,
-} from "lucide-react";
-
+import { useState, useEffect, useRef } from "react";
+import { Send, ArrowLeft, Phone, Video, Info } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-
 import { useAuth } from "../context/AuthContext";
+import { db } from "../firebase";
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "firebase/firestore";
 
 const ChatPage = () => {
-
   const navigate = useNavigate();
-
   const location = useLocation();
-
   const { user } = useAuth();
-
   const productData = location.state?.product;
-
-  const sellerData = location.state?.seller;
-
+  const sellerData = location.state?.seller || productData?.seller;
   const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([]);
+  const messagesEndRef = useRef(null);
 
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: "seller",
-      text: "Hello 👋",
-      time: "10:30 AM",
-    },
-    {
-      id: 2,
-      sender: "seller",
-      text: "This product is available.",
-      time: "10:31 AM",
-    },
-  ]);
+  // Generate a chat ID based on product and user
+  const chatId = productData
+    ? `${user?.uid}_${productData.sellerId || "seller"}_${productData.id}`
+    : `general_${user?.uid}`;
 
   useEffect(() => {
+    if (!chatId) return;
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setMessages(msgs);
+    }, (error) => {
+      console.error("Chat listener error:", error);
+      // Fallback for when collection doesn't exist yet
+      setMessages([]);
+    });
+    return () => unsubscribe();
+  }, [chatId]);
 
-    if (productData) {
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          sender: "seller",
-          text: `You are asking about ${productData.title}`,
-          time: "Now",
-        },
-      ]);
-
-    }
-
-  }, []);
-
-  const handleSend = () => {
-
-    if (!input.trim()) return;
-
-    const newMessage = {
-      id: Date.now(),
-      sender: "customer",
-      text: input,
-      time: "Now",
-    };
-
-    setMessages((prev) => [...prev, newMessage]);
-
+  const handleSend = async () => {
+    if (!input.trim() || !user) return;
+    const text = input;
     setInput("");
-
-    setTimeout(() => {
-
-      const reply = {
-        id: Date.now() + 1,
-        sender: "seller",
-        text: "Thanks for messaging. I'll reply soon.",
-        time: "Now",
-      };
-
-      setMessages((prev) => [...prev, reply]);
-
-    }, 1000);
+    try {
+      const messagesRef = collection(db, "chats", chatId, "messages");
+      await addDoc(messagesRef, {
+        senderId: user.uid,
+        senderName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User",
+        text: text,
+        timestamp: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Send message error:", error);
+      // Show message locally as fallback
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(),
+        senderId: user.uid,
+        text: text,
+        timestamp: { seconds: Date.now() / 1000 },
+      }]);
+    }
   };
 
-  if (!user) {
+  if (!user) { navigate("/"); return null; }
 
-    navigate("/");
-
-    return null;
-
-  }
+  const formatTime = (timestamp) => {
+    if (!timestamp?.seconds) return "Now";
+    return new Date(timestamp.seconds * 1000).toLocaleTimeString("en-US", {
+      hour: "2-digit", minute: "2-digit",
+    });
+  };
 
   return (
-
-    <div className="w-full h-screen bg-black flex">
-
+    <div className="chat-page-full">
       {/* SIDEBAR */}
-
-      <div className="hidden md:flex w-[350px] border-r border-zinc-800 bg-black flex-col">
-
-        <div className="h-[80px] border-b border-zinc-800 flex items-center px-6">
-
-          <h1 className="text-white text-2xl font-bold">
-            bazario
-          </h1>
-
+      <div className="chat-sidebar">
+        <div className="chat-sidebar-header">
+          <h2>bazario</h2>
         </div>
-
-        <div className="flex-1 overflow-y-auto">
-
-          <div className="p-4 hover:bg-zinc-900 cursor-pointer transition">
-
-            <div className="flex items-center gap-3">
-
-              <img
-                src={productData?.image}
-                alt=""
-                className="w-14 h-14 rounded-full object-cover"
-              />
-
-              <div>
-
-                <h2 className="text-white font-semibold">
-                  {sellerData?.name || "Seller"}
-                </h2>
-
-                <p className="text-zinc-400 text-sm">
-                  {productData?.title}
-                </p>
-
-              </div>
-
+        {productData && (
+          <div className="chat-contact active">
+            <img src={productData.image} alt="" className="chat-contact-img" />
+            <div>
+              <h4>{sellerData?.name || "Seller"}</h4>
+              <p>{productData.title}</p>
             </div>
-
           </div>
-
-        </div>
-
+        )}
       </div>
 
       {/* CHAT AREA */}
-
-      <div className="flex-1 flex flex-col bg-black">
-
+      <div className="chat-main">
         {/* HEADER */}
-
-        <div className="h-[80px] border-b border-zinc-800 px-4 flex items-center justify-between">
-
-          <div className="flex items-center gap-3">
-
-            <button
-              onClick={() => navigate(-1)}
-              className="text-white md:hidden"
-            >
-              <ArrowLeft size={24} />
+        <div className="chat-main-header">
+          <div className="chat-header-left">
+            <button onClick={() => navigate(-1)} className="chat-back-btn">
+              <ArrowLeft size={22} />
             </button>
-
-            <img
-              src={productData?.image}
-              alt=""
-              className="w-12 h-12 rounded-full object-cover"
-            />
-
+            {productData && (
+              <img src={productData.image} alt="" className="chat-avatar" />
+            )}
             <div>
-
-              <h2 className="text-white font-semibold">
-                {sellerData?.name || "Seller"}
-              </h2>
-
-              <p className="text-zinc-400 text-sm">
-                Active now
-              </p>
-
+              <h3>{sellerData?.name || "Seller"}</h3>
+              <span className="chat-status">Active now</span>
             </div>
-
           </div>
-
-          <div className="flex items-center gap-5 text-white">
-
-            <Phone size={22} />
-
-            <Video size={22} />
-
-            <Info size={22} />
-
+          <div className="chat-header-actions">
+            <Phone size={20} />
+            <Video size={20} />
+            <Info size={20} />
           </div>
-
         </div>
 
         {/* PRODUCT PREVIEW */}
-
-        <div className="border-b border-zinc-800 p-4 flex items-center gap-4 bg-zinc-950">
-
-          <img
-            src={productData?.image}
-            alt=""
-            className="w-20 h-20 rounded-xl object-cover"
-          />
-
-          <div>
-
-            <h2 className="text-white font-semibold">
-              {productData?.title}
-            </h2>
-
-            <p className="text-green-500 font-bold">
-              ₹{productData?.price}
-            </p>
-
+        {productData && (
+          <div className="chat-product-preview">
+            <img src={productData.image} alt="" />
+            <div>
+              <h4>{productData.title}</h4>
+              <p className="chat-product-price">₹{productData.price}</p>
+            </div>
           </div>
-
-        </div>
+        )}
 
         {/* MESSAGES */}
-
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-
+        <div className="chat-messages">
+          {messages.length === 0 && (
+            <div className="chat-empty">
+              <p>Start a conversation about this product</p>
+            </div>
+          )}
           {messages.map((msg) => (
-
             <div
               key={msg.id}
-              className={`flex ${
-                msg.sender === "customer"
-                  ? "justify-end"
-                  : "justify-start"
+              className={`chat-bubble-wrapper ${
+                msg.senderId === user.uid ? "sent" : "received"
               }`}
             >
-
-              <div
-                className={`max-w-[75%] px-4 py-3 rounded-3xl text-sm ${
-                  msg.sender === "customer"
-                    ? "bg-blue-500 text-white rounded-br-md"
-                    : "bg-zinc-800 text-white rounded-bl-md"
-                }`}
-              >
-
+              <div className={`chat-bubble ${msg.senderId === user.uid ? "sent" : "received"}`}>
                 <p>{msg.text}</p>
-
-                <span className="text-[11px] opacity-70 block mt-1">
-                  {msg.time}
-                </span>
-
+                <span className="chat-time">{formatTime(msg.timestamp)}</span>
               </div>
-
             </div>
-
           ))}
-
+          <div ref={messagesEndRef} />
         </div>
 
         {/* INPUT */}
-
-        <div className="p-4 border-t border-zinc-800 bg-black">
-
-          <div className="flex items-center bg-zinc-900 rounded-full px-4 py-2">
-
+        <div className="chat-input-bar">
+          <div className="chat-input-wrapper">
             <input
               type="text"
               placeholder="Message..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" && handleSend()
-              }
-              className="
-              flex-1
-              bg-transparent
-              outline-none
-              text-white
-              placeholder:text-zinc-500
-              "
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
             />
-
-            <button
-              onClick={handleSend}
-              className="text-blue-500"
-            >
-              <Send size={22} />
+            <button onClick={handleSend} className="chat-send-btn">
+              <Send size={20} />
             </button>
-
           </div>
-
         </div>
-
       </div>
-
     </div>
-
   );
-
 };
 
 export default ChatPage;

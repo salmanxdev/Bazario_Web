@@ -1,11 +1,10 @@
-import { X, Heart, Star, MessageCircle } from "lucide-react";
+import { X, Heart, Star, MessageCircle, Share2 } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { useLikes } from "../context/LikesContext";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { showToast } from "../utils/toast";
-import SellerChatModal from "./SellerChatModal";
 
 const ProductModal = ({ product, onClose }) => {
   const { addToCart } = useCart();
@@ -13,139 +12,92 @@ const ProductModal = ({ product, onClose }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [quantity, setQuantity] = useState(1);
-  const [showSellerChat, setShowSellerChat] = useState(false);
 
   const handleAddToCart = () => {
-    if (!user) {
-      showToast.error("Please login first");
-      navigate("/");
-      return;
-    }
-    for (let i = 0; i < quantity; i++) {
-      addToCart(product);
-    }
-    showToast.success(`Added ${quantity} ${quantity > 1 ? 'items' : 'item'} to cart!`);
+    if (!user) { showToast.error("Please login first"); navigate("/"); return; }
+    for (let i = 0; i < quantity; i++) { addToCart(product); }
+    showToast.success(`Added ${quantity} item(s) to cart!`);
     setQuantity(1);
   };
 
   const handleLike = () => {
-    if (!user) {
-      showToast.error("Please login first");
-      navigate("/");
-      return;
-    }
+    if (!user) { showToast.error("Please login first"); navigate("/"); return; }
     toggleLike(product);
-    if (isLiked(product.id)) {
-      showToast.info(`Removed from likes`);
-    } else {
-      showToast.success(`Added to likes!`);
+    if (isLiked(product.id)) { showToast.info("Removed from wishlist"); }
+    else { showToast.success("Added to wishlist!"); }
+  };
+
+  const handleChat = () => {
+    if (!user) { showToast.error("Please login first"); navigate("/"); return; }
+    onClose();
+    navigate("/chat", { state: { product, seller: product.seller } });
+  };
+
+  const handleShare = async () => {
+    try {
+      await navigator.share({
+        title: product.title,
+        text: `Check out ${product.title} on Bazario - ₹${product.price}`,
+        url: window.location.href,
+      });
+    } catch (e) {
+      navigator.clipboard.writeText(`${product.title} - ₹${product.price} on Bazario`);
+      showToast.success("Link copied to clipboard!");
     }
   };
 
   return (
-    <>
-      <div className="product-modal-overlay" onClick={onClose}>
-        <div className="product-modal" onClick={(e) => e.stopPropagation()}>
-          {/* CLOSE BUTTON */}
-          <button className="modal-close-btn" onClick={onClose}>
-            <X size={24} />
-          </button>
-
-          {/* MODAL CONTENT */}
-          <div className="modal-content">
-            {/* IMAGE SECTION */}
-            <div className="modal-image-section">
-              <img src={product.image} alt={product.title} />
-            </div>
-
-            {/* DETAILS SECTION */}
-            <div className="modal-details-section">
-              {/* TITLE */}
-              <h2 className="modal-title">{product.title}</h2>
-
-              {/* SELLER INFO */}
+    <div className="product-modal-overlay" onClick={onClose}>
+      <div className="product-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close-btn" onClick={onClose}><X size={24} /></button>
+        <div className="modal-content">
+          <div className="modal-image-section">
+            <img src={product.image} alt={product.title} />
+          </div>
+          <div className="modal-details-section">
+            <h2 className="modal-title">{product.title}</h2>
+            {product.seller && (
               <div className="seller-section">
                 <p className="seller-label">Sold by</p>
                 <p className="seller-name">
-                  {product.seller.name}
+                  {product.seller.name || product.sellerName}
                   {product.seller.verified && <span className="verified-badge">✓</span>}
                 </p>
-                <p className="seller-rating">⭐ {product.seller.rating}</p>
+                {product.seller.rating > 0 && <p className="seller-rating">⭐ {product.seller.rating}</p>}
               </div>
-
-              {/* RATING */}
-              <div className="modal-rating">
-                <Star size={18} fill="gold" color="gold" />
-                <span>{product.rating}</span>
+            )}
+            <div className="modal-rating">
+              <Star size={18} fill="gold" color="gold" />
+              <span>{product.rating || "New"}</span>
+            </div>
+            <div className="modal-price"><span className="price">₹ {product.price}</span></div>
+            <div className="modal-description">
+              <p>{product.description || "High-quality product with excellent features."}</p>
+            </div>
+            <div className="quantity-selector">
+              <label>Quantity:</label>
+              <div className="qty-controls">
+                <button onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button>
+                <input type="number" value={quantity} readOnly />
+                <button onClick={() => setQuantity(quantity + 1)}>+</button>
               </div>
-
-              {/* PRICE */}
-              <div className="modal-price">
-                <span className="price">₹ {product.price}</span>
-              </div>
-
-              {/* DESCRIPTION */}
-              <div className="modal-description">
-                <p>
-                  {product.description ||
-                    "High-quality product with excellent features. Perfect for your needs."}
-                </p>
-              </div>
-
-              {/* QUANTITY SELECTOR */}
-              <div className="quantity-selector">
-                <label>Quantity:</label>
-                <div className="qty-controls">
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))}>
-                    −
-                  </button>
-                  <input type="number" value={quantity} readOnly />
-                  <button onClick={() => setQuantity(quantity + 1)}>+</button>
-                </div>
-              </div>
-
-              {/* ACTIONS */}
-              <div className="modal-actions">
-                {/* LIKE BUTTON */}
-                <button
-                  className={`modal-like-btn ${isLiked(product.id) ? "liked" : ""}`}
-                  onClick={handleLike}
-                  title="Like this product"
-                >
-                  <Heart
-                    size={28}
-                    fill={isLiked(product.id) ? "white" : "transparent"}
-                    color={isLiked(product.id) ? "white" : "black"}
-                  />
-                </button>
-
-                {/* ADD TO CART */}
-                <button className="modal-cart-btn" onClick={handleAddToCart}>
-                  Add To Cart
-                </button>
-
-                {/* SELLER CHAT */}
-                <button 
-                  className="modal-seller-chat-btn"
-                  onClick={() => setShowSellerChat(true)}
-                  title="Chat with seller"
-                >
-                  <MessageCircle size={20} />
-                </button>
-              </div>
+            </div>
+            <div className="modal-actions">
+              <button className={`modal-like-btn ${isLiked(product.id) ? "liked" : ""}`} onClick={handleLike}>
+                <Heart size={24} fill={isLiked(product.id) ? "white" : "transparent"} color={isLiked(product.id) ? "white" : "black"} />
+              </button>
+              <button className="modal-cart-btn" onClick={handleAddToCart}>Add To Cart</button>
+              <button className="modal-chat-btn" onClick={handleChat} title="Chat with seller">
+                <MessageCircle size={20} />
+              </button>
+              <button className="modal-share-btn" onClick={handleShare} title="Share">
+                <Share2 size={20} />
+              </button>
             </div>
           </div>
         </div>
       </div>
-
-      {/* SELLER CHAT MODAL */}
-      {showSellerChat && (
-        <SellerChatModal 
-          product={product}
-          onClose={() => setShowSellerChat(false)}
-        />
-      )}
-    </>
+    </div>
   );
 };
 

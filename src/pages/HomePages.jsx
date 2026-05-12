@@ -1,118 +1,63 @@
-import { Outlet } from "react-router-dom";
-
-import Navbar from "../components/Navbar";
-import Sidebar from "../components/Sidebar";
+import { useState, useEffect } from "react";
 import ProductCard from "../components/ProductCard";
-import headset from '../assets/headset.jpg'
-import products from "../utils/products";
-import sofa from '../assets/sofa.jpg'
-import laptop from '../assets/laptop.jpg'
-import car from '../assets/car.jpg'
-import theater from '../assets/theater.jpg'
+import { db } from "../firebase";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
 const HomePage = () => {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    return (
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
-        <div className="home-page">
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const productsRef = collection(db, "products");
+      const q = query(productsRef, orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
 
-            <div className="home-container">
+      const productsData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-                {/* MAIN CONTENT */}
+      setProducts(productsData);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                <div className="home-content">
+  return (
+    <div className="home-page-content">
+      {/* PINTEREST MASONRY GRID */}
 
-                    {/* BANNERS */}
-
-                    <div className="banner-section">
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={sofa}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={headset}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={car}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={headset}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={headset}
-                                alt=""
-                            />
-                        </div>
-                        <div className="banner-card">
-                            <div className="banner-content">
-                                <p>50% OFF ON</p>
-                                <h2>HEADPHONES</h2>
-                            </div>
-                            <img
-                                src={laptop}
-                                alt=""
-                            />
-                        </div>
-
-                    </div>
-
-                    {/* DYNAMIC CONTENT */}
-
-                    <Outlet />
-
-                    {/* DEFAULT PRODUCTS */}
-
-                    <div className="products-grid">
-
-                        {products.map((product) => (
-
-                            <ProductCard
-                                key={product.id}
-                                product={product}
-                            />
-
-                        ))}
-
-                    </div>
-
-                </div>
-
+      {loading ? (
+        <div className="masonry-grid">
+          {[...Array(12)].map((_, i) => (
+            <div key={i} className="skeleton-card">
+              <div className="skeleton-image" />
             </div>
-
+          ))}
         </div>
-    );
+      ) : products.length === 0 ? (
+        <div className="empty-home">
+          <div className="empty-icon">🛍️</div>
+          <h2>No Products Yet</h2>
+          <p>Be the first seller to post products on Bazario!</p>
+        </div>
+      ) : (
+        <div className="masonry-grid">
+          {products.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default HomePage;

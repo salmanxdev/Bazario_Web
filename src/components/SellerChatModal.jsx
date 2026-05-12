@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Send } from 'lucide-react';
+import { X, Send, ShoppingBag } from 'lucide-react';
 import { showToast } from '../utils/toast';
 
 const SellerChatModal = ({ product, onClose }) => {
@@ -7,7 +7,7 @@ const SellerChatModal = ({ product, onClose }) => {
     {
       id: 1,
       sender: 'seller',
-      text: `Hi! I'm from ${product.seller.name}. How can I help you with this product?`,
+      text: `Hi! I'm from ${product.seller.name}. Feel free to ask about this product - price, features, availability, or anything else!`,
       timestamp: new Date(Date.now() - 2 * 60000),
     }
   ]);
@@ -31,7 +31,7 @@ const SellerChatModal = ({ product, onClose }) => {
       const sellerResponse = {
         id: messages.length + 2,
         sender: 'seller',
-        text: 'Thanks for your message! I will get back to you shortly.',
+        text: 'Thanks for your inquiry! Let me check the details and get back to you shortly.',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, sellerResponse]);
@@ -51,7 +51,10 @@ const SellerChatModal = ({ product, onClose }) => {
           <div className="seller-info">
             <div>
               <h3>{product.seller.name}</h3>
-              <p className="product-title">{product.title}</p>
+              <p className="product-title">
+                <ShoppingBag size={14} />
+                {product.title}
+              </p>
             </div>
           </div>
           <button className="modal-close-btn" onClick={onClose}>
@@ -81,7 +84,7 @@ const SellerChatModal = ({ product, onClose }) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-            placeholder="Ask seller about this product..."
+            placeholder="Ask about price, features, availability, or make an offer..."
             className="seller-chat-input"
           />
           <button 

@@ -1,6 +1,8 @@
 import { X, Heart, Star, MessageCircle } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { useLikes } from "../context/LikesContext";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { showToast } from "../utils/toast";
 import SellerChatModal from "./SellerChatModal";
@@ -8,10 +10,17 @@ import SellerChatModal from "./SellerChatModal";
 const ProductModal = ({ product, onClose }) => {
   const { addToCart } = useCart();
   const { isLiked, toggleLike } = useLikes();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [quantity, setQuantity] = useState(1);
   const [showSellerChat, setShowSellerChat] = useState(false);
 
   const handleAddToCart = () => {
+    if (!user) {
+      showToast.error("Please login first");
+      navigate("/");
+      return;
+    }
     for (let i = 0; i < quantity; i++) {
       addToCart(product);
     }
@@ -20,6 +29,11 @@ const ProductModal = ({ product, onClose }) => {
   };
 
   const handleLike = () => {
+    if (!user) {
+      showToast.error("Please login first");
+      navigate("/");
+      return;
+    }
     toggleLike(product);
     if (isLiked(product.id)) {
       showToast.info(`Removed from likes`);

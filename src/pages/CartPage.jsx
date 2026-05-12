@@ -1,299 +1,482 @@
-return (
+import { useCart } from "../context/CartContext";
 
-    <div
+import { useState } from "react";
+
+import {
+  Trash2,
+  ShoppingBag,
+  ArrowLeft,
+  Plus,
+  Minus,
+} from "lucide-react";
+
+import { showToast } from "../utils/toast";
+
+import { useNavigate } from "react-router-dom";
+
+const CartPage = () => {
+
+  const {
+    cartItems,
+    removeFromCart,
+  } = useCart();
+
+  const navigate = useNavigate();
+
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const totalPrice = cartItems.reduce(
+    (total, item) =>
+      total + item.price * item.quantity,
+    0
+  );
+
+  const handleProceedToBuy = () => {
+
+    setIsProcessing(true);
+
+    setTimeout(() => {
+
+      setIsProcessing(false);
+
+      showToast.success("Order placed successfully");
+
+      navigate("/");
+
+    }, 2000);
+
+  };
+
+  return (
+
+    <div className="w-full min-h-screen bg-[#0f1111] text-white">
+
+      {/* HEADER */}
+
+      <div
         className="
-        w-full
-        h-screen
-        bg-[#EAEDED]
-        flex
-        flex-col
-        overflow-hidden
+        sticky
+        top-0
+        z-50
+        bg-black/90
+        backdrop-blur-md
+        border-b
+        border-zinc-800
         "
-    >
-
-        {/* HEADER */}
+      >
 
         <div
-            className="
-            p-4
-            bg-white
-            shadow-sm
-            border-b
-            "
+          className="
+          max-w-7xl
+          mx-auto
+          px-4
+          py-4
+          flex
+          items-center
+          justify-between
+          "
         >
 
-            <h1
-                className="
-                text-3xl
-                font-bold
-                "
+          <div className="flex items-center gap-4">
+
+            <button
+              onClick={() => navigate(-1)}
+              className="
+              w-10
+              h-10
+              rounded-full
+              bg-zinc-900
+              flex
+              items-center
+              justify-center
+              hover:bg-zinc-800
+              transition
+              "
             >
+
+              <ArrowLeft size={20} />
+
+            </button>
+
+            <div>
+
+              <h1 className="text-2xl font-bold">
                 Shopping Cart
-            </h1>
+              </h1>
+
+              <p className="text-zinc-400 text-sm">
+                {cartItems.length} items
+              </p>
+
+            </div>
+
+          </div>
 
         </div>
 
-        {
+      </div>
 
-            cartItems.length === 0
+      {
+        cartItems.length === 0 ? (
 
-                ? (
+          <div
+            className="
+            flex
+            flex-col
+            items-center
+            justify-center
+            min-h-[80vh]
+            px-5
+            text-center
+            "
+          >
 
-                    <div
+            <div
+              className="
+              w-32
+              h-32
+              rounded-full
+              bg-zinc-900
+              flex
+              items-center
+              justify-center
+              mb-6
+              "
+            >
+
+              <ShoppingBag size={60} />
+
+            </div>
+
+            <h2 className="text-3xl font-bold mb-3">
+              Your Cart is Empty
+            </h2>
+
+            <p className="text-zinc-400 mb-8 max-w-md">
+              Looks like you haven't added
+              anything to your cart yet.
+            </p>
+
+            <button
+              onClick={() => navigate("/")}
+              className="
+              bg-yellow-400
+              hover:bg-yellow-500
+              text-black
+              font-bold
+              px-8
+              py-4
+              rounded-2xl
+              transition
+              "
+            >
+
+              Continue Shopping
+
+            </button>
+
+          </div>
+
+        ) : (
+
+          <div
+            className="
+            max-w-7xl
+            mx-auto
+            grid
+            lg:grid-cols-[1fr_400px]
+            gap-6
+            p-4
+            "
+          >
+
+            {/* LEFT SIDE */}
+
+            <div className="space-y-5">
+
+              {
+                cartItems.map((item) => (
+
+                  <div
+                    key={item.id}
+                    className="
+                    bg-[#1a1c1e]
+                    border
+                    border-zinc-800
+                    rounded-3xl
+                    p-4
+                    flex
+                    gap-5
+                    hover:border-zinc-700
+                    transition
+                    "
+                  >
+
+                    {/* IMAGE */}
+
+                    <img
+                      src={item.image}
+                      alt=""
+                      className="
+                      w-32
+                      h-32
+                      object-cover
+                      rounded-2xl
+                      "
+                    />
+
+                    {/* INFO */}
+
+                    <div className="flex-1">
+
+                      <h2
                         className="
-                        flex-1
+                        text-xl
+                        font-semibold
+                        line-clamp-2
+                        mb-2
+                        "
+                      >
+                        {item.title}
+                      </h2>
+
+                      <p
+                        className="
+                        text-2xl
+                        font-bold
+                        text-yellow-400
+                        mb-4
+                        "
+                      >
+                        ₹ {item.price}
+                      </p>
+
+                      {/* QUANTITY */}
+
+                      <div
+                        className="
                         flex
                         items-center
-                        justify-center
-                        p-5
+                        gap-3
                         "
-                    >
+                      >
 
                         <div
-                            className="
-                            bg-white
-                            rounded-2xl
-                            p-10
-                            text-center
-                            shadow-sm
-                            w-full
-                            max-w-lg
-                            "
+                          className="
+                          flex
+                          items-center
+                          bg-black
+                          rounded-full
+                          border
+                          border-zinc-700
+                          "
                         >
 
-                            <h2
-                                className="
-                                text-2xl
-                                font-semibold
-                                mb-3
-                                "
-                            >
-                                Your Cart is Empty
-                            </h2>
+                          <button
+                            className="
+                            p-2
+                            hover:bg-zinc-800
+                            rounded-full
+                            transition
+                            "
+                          >
 
-                            <p className="text-gray-500">
-                                Add products to continue shopping.
-                            </p>
+                            <Minus size={16} />
+
+                          </button>
+
+                          <span className="px-4">
+                            {item.quantity}
+                          </span>
+
+                          <button
+                            className="
+                            p-2
+                            hover:bg-zinc-800
+                            rounded-full
+                            transition
+                            "
+                          >
+
+                            <Plus size={16} />
+
+                          </button>
 
                         </div>
+
+                      </div>
 
                     </div>
 
-                )
+                    {/* REMOVE */}
 
-                : (
+                    <button
+                      onClick={() => {
 
-                    <>
+                        removeFromCart(item.id);
 
-                        {/* SCROLLABLE PRODUCTS */}
+                        showToast.info(
+                          `${item.title} removed`
+                        );
 
-                        <div
-                            className="
-                            flex-1
-                            overflow-y-auto
-                            p-4
-                            space-y-4
-                            "
-                        >
+                      }}
+                      className="
+                      self-start
+                      bg-red-500/20
+                      hover:bg-red-500
+                      text-red-400
+                      hover:text-white
+                      p-3
+                      rounded-2xl
+                      transition
+                      "
+                    >
 
-                            {
+                      <Trash2 size={20} />
 
-                                cartItems.map((item) => (
+                    </button>
 
-                                    <div
-                                        key={item.id}
-                                        className="
-                                        bg-white
-                                        rounded-2xl
-                                        p-4
-                                        shadow-sm
-                                        flex
-                                        gap-4
-                                        items-center
-                                        "
-                                    >
+                  </div>
 
-                                        {/* IMAGE */}
+                ))
+              }
 
-                                        <img
-                                            src={item.image}
-                                            alt=""
-                                            className="
-                                            w-28
-                                            h-28
-                                            object-cover
-                                            rounded-xl
-                                            border
-                                            "
-                                        />
+            </div>
 
-                                        {/* INFO */}
+            {/* RIGHT SIDE */}
 
-                                        <div className="flex-1">
+            <div
+              className="
+              sticky
+              top-24
+              h-fit
+              bg-[#1a1c1e]
+              border
+              border-zinc-800
+              rounded-3xl
+              p-6
+              "
+            >
 
-                                            <h2
-                                                className="
-                                                text-lg
-                                                font-semibold
-                                                mb-2
-                                                line-clamp-2
-                                                "
-                                            >
-                                                {item.title}
-                                            </h2>
+              <h2
+                className="
+                text-2xl
+                font-bold
+                mb-6
+                "
+              >
+                Order Summary
+              </h2>
 
-                                            <p
-                                                className="
-                                                text-xl
-                                                font-bold
-                                                text-indigo-600
-                                                mb-2
-                                                "
-                                            >
-                                                ₹ {item.price}
-                                            </p>
+              {/* DETAILS */}
 
-                                            <p className="text-gray-500">
-                                                Quantity: {item.quantity}
-                                            </p>
+              <div className="space-y-4 mb-6">
 
-                                        </div>
+                <div className="flex justify-between">
 
-                                        {/* REMOVE */}
+                  <span className="text-zinc-400">
+                    Items
+                  </span>
 
-                                        <button
-                                            onClick={() => {
-                                                removeFromCart(item.id);
-                                                showToast.info(`${item.title} removed from cart`);
-                                            }}
-                                            className="
-                                            bg-red-500
-                                            hover:bg-red-600
-                                            text-white
-                                            px-4
-                                            py-2
-                                            rounded-xl
-                                            transition
-                                            "
-                                        >
-                                            Remove
-                                        </button>
+                  <span>
+                    {cartItems.length}
+                  </span>
 
-                                    </div>
+                </div>
 
-                                ))
-                            }
+                <div className="flex justify-between">
 
-                            {/* EXTRA SPACE FOR BOTTOM PANEL */}
+                  <span className="text-zinc-400">
+                    Delivery
+                  </span>
 
-                            <div className="h-40"></div>
+                  <span className="text-green-500">
+                    FREE
+                  </span>
 
-                        </div>
+                </div>
 
-                        {/* FIXED BOTTOM PRICE PANEL */}
+                <div className="flex justify-between">
 
-                        <div
-                            className="
-                            bg-white
-                            border-t
-                            shadow-[0_-2px_10px_rgba(0,0,0,0.08)]
-                            p-5
-                            rounded-t-3xl
-                            "
-                        >
+                  <span className="text-zinc-400">
+                    Platform Fee
+                  </span>
 
-                            <h2
-                                className="
-                                text-2xl
-                                font-bold
-                                mb-5
-                                "
-                            >
-                                Price Details
-                            </h2>
+                  <span>
+                    ₹ 0
+                  </span>
 
-                            <div
-                                className="
-                                flex
-                                justify-between
-                                mb-3
-                                text-gray-600
-                                "
-                            >
+                </div>
 
-                                <p>Total Items</p>
+              </div>
 
-                                <p>{cartItems.length}</p>
+              <div
+                className="
+                border-t
+                border-zinc-800
+                pt-5
+                mb-6
+                "
+              >
 
-                            </div>
+                <div
+                  className="
+                  flex
+                  justify-between
+                  text-2xl
+                  font-bold
+                  "
+                >
 
-                            <div
-                                className="
-                                flex
-                                justify-between
-                                mb-4
-                                text-gray-600
-                                "
-                            >
+                  <span>Total</span>
 
-                                <p>Delivery</p>
+                  <span className="text-yellow-400">
+                    ₹ {totalPrice}
+                  </span>
 
-                                <p className="text-green-600 font-semibold">
-                                    FREE
-                                </p>
+                </div>
 
-                            </div>
+              </div>
 
-                            <hr className="my-4" />
+              {/* BUTTON */}
 
-                            <div
-                                className="
-                                flex
-                                justify-between
-                                text-2xl
-                                font-bold
-                                mb-5
-                                "
-                            >
+              <button
+                onClick={handleProceedToBuy}
+                disabled={isProcessing}
+                className="
+                w-full
+                bg-yellow-400
+                hover:bg-yellow-500
+                disabled:bg-zinc-700
+                disabled:cursor-not-allowed
+                text-black
+                font-bold
+                py-4
+                rounded-2xl
+                text-lg
+                transition
+                "
+              >
 
-                                <p>Total</p>
+                {
+                  isProcessing
+                    ? "Processing..."
+                    : "Proceed To Buy"
+                }
 
-                                <p>₹ {totalPrice}</p>
+              </button>
 
-                            </div>
+            </div>
 
-                            <button
-                                onClick={handleProceedToBuy}
-                                disabled={isProcessing}
-                                className="
-                                w-full
-                                bg-yellow-400
-                                hover:bg-yellow-500
-                                disabled:bg-gray-400
-                                disabled:cursor-not-allowed
-                                py-4
-                                rounded-2xl
-                                font-bold
-                                text-lg
-                                transition
-                                "
-                            >
+          </div>
 
-                                {
-                                    isProcessing
-                                        ? "Processing..."
-                                        : "Proceed To Buy"
-                                }
-
-                            </button>
-
-                        </div>
-
-                    </>
-
-                )
-        }
+        )
+      }
 
     </div>
 
-);
+  );
+
+};
+
+export default CartPage;

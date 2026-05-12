@@ -1,5 +1,6 @@
 import { useLikes } from "../context/LikesContext";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Heart, ShoppingCart, ArrowLeft } from "lucide-react";
 import { showToast } from "../utils/toast";
@@ -7,9 +8,15 @@ import { showToast } from "../utils/toast";
 const LikesPage = () => {
   const { likedProducts } = useLikes();
   const { addToCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleAddToCart = (product) => {
+    if (!user) {
+      showToast.error("Please login first");
+      navigate("/");
+      return;
+    }
     addToCart(product);
     showToast.success(`${product.title} added to cart!`);
   };

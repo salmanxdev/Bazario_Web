@@ -71,6 +71,12 @@ export const CartProvider = ({ children }) => {
 
     const addToCart = async (product) => {
 
+        // CHECK IF USER IS LOGGED IN
+        if (!user) {
+            console.warn("User not logged in. Cannot add to cart.");
+            return;
+        }
+
         // CHECK PRODUCT EXISTS
 
         const existingProduct = cartItems.find(

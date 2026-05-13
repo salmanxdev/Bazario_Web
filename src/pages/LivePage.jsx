@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { Video, Users, MessageSquare, ArrowLeft, Radio, RefreshCw, Loader2, Mic, MicOff, Video as VideoIcon, VideoOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 import { toast } from "react-toastify";
 import { db } from "../firebase";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, where, serverTimestamp } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, where, serverTimestamp, getDocs, updateDoc } from "firebase/firestore";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
 const AGORA_APP_ID = "5492309418244c9a873bb0a2f417dbfd";
@@ -23,6 +24,10 @@ const LivePage = () => {
 
   const [activeStreams, setActiveStreams] = useState([]);
   const [watchingStream, setWatchingStream] = useState(null);
+  const [streamProducts, setStreamProducts] = useState([]);
+  const [sellerProducts, setSellerProducts] = useState([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
   // Agora Refs
   const clientRef = useRef(null);
@@ -31,6 +36,93 @@ const LivePage = () => {
 
   const isSeller = user?.role === "seller";
   const currentUserId = user?.uid;
+  const { addToCart } = useCart();
+
+  const selectedProduct = streamProducts.find((product) => product.id === selectedProductId) || null;
+  const featuredProduct = watchingStream?.selectedProduct || selectedProduct;
+
+  const handleSelectSellerProduct = async (productId) => {
+    if (isLive) {
+      await updateSelectedProduct(productId);
+    } else {
+      setSelectedProductId(productId);
+    }
+  };
+
+  const loadStreamProducts = async (sellerId) => {
+    if (!sellerId) {
+      setStreamProducts([]);
+      setSellerProducts([]);
+      setSelectedProductId("");
+      return;
+    }
+    setIsLoadingProducts(true);
+    try {
+      const productsRef = collection(db, "products");
+      const productsQuery = query(productsRef, where("sellerId", "==", sellerId));
+      const snapshot = await getDocs(productsQuery);
+      const productsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setStreamProducts(productsData);
+      if (isSeller) {
+        setSellerProducts(productsData);
+        if (!selectedProductId && productsData.length > 0) {
+          setSelectedProductId(productsData[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("LivePage product fetch error:", error);
+      toast.error("Unable to load products for this live stream.");
+      setStreamProducts([]);
+      setSellerProducts([]);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  useEffect(() => {
+    if (watchingStream?.sellerId) {
+      loadStreamProducts(watchingStream.sellerId);
+    } else if (isSeller && currentUserId) {
+      loadStreamProducts(currentUserId);
+    } else {
+      setStreamProducts([]);
+      setSellerProducts([]);
+      setSelectedProductId("");
+    }
+  }, [watchingStream, isSeller, currentUserId]);
+
+  const handleBuyProduct = async (product) => {
+    if (!product || !user) {
+      toast.error("You need to login to buy products.");
+      return;
+    }
+    await addToCart(product);
+    toast.success(`${product.title} added to cart!`);
+  };
+
+  const updateSelectedProduct = async (productId) => {
+    setSelectedProductId(productId);
+    if (!currentUserId) return;
+
+    const product = sellerProducts.find((item) => item.id === productId);
+    if (!product) return;
+
+    try {
+      const liveDocRef = doc(db, "live_streams", currentUserId);
+      await updateDoc(liveDocRef, {
+        selectedProduct: {
+          id: product.id,
+          title: product.title,
+          price: product.price,
+          image: product.image,
+        },
+      });
+      toast.success(`Featured ${product.title}`);
+    } catch (error) {
+      console.error("LivePage update selected product error:", error);
+      toast.error("Failed to update featured product.");
+    }
+  };
 
   // 1. Initialize Agora Client on mount
   useEffect(() => {
@@ -95,6 +187,11 @@ const LivePage = () => {
       return;
     }
 
+    if (isSeller && !selectedProductId) {
+      toast.error("Select a product to feature before going live.");
+      return;
+    }
+
     setIsConnecting(true);
     try {
       const client = clientRef.current;
@@ -113,6 +210,14 @@ const LivePage = () => {
       console.log("LivePage: Publishing tracks...");
       await client.publish([audioTrack, videoTrack]);
 
+      const selectedProduct = sellerProducts.find((product) => product.id === selectedProductId);
+      const featuredProduct = selectedProduct ? {
+        id: selectedProduct.id,
+        title: selectedProduct.title,
+        price: selectedProduct.price,
+        image: selectedProduct.image,
+      } : null;
+
       // Update Firestore
       console.log("LivePage: Updating Firestore live status...");
       await setDoc(doc(db, "live_streams", user.uid), {
@@ -121,7 +226,8 @@ const LivePage = () => {
         status: "live",
         channelName: user.uid,
         startTime: serverTimestamp(),
-        viewers: 1
+        viewers: 1,
+        selectedProduct: featuredProduct,
       });
 
       setIsLive(true);
@@ -271,8 +377,39 @@ const LivePage = () => {
                     <>
                       <Radio size={80} style={{ color: '#ff2e63', marginBottom: '20px', opacity: 0.8 }} />
                       <h2 style={{ fontSize: '28px', fontWeight: '800', marginBottom: '10px' }}>Go Live & Sell</h2>
-                      <p style={{ color: '#aaa', marginBottom: '35px', maxWidth: '400px' }}>Start your live show and interact with customers in real-time to boost your sales!</p>
-                      <button className="go-live-btn" onClick={startLive} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#ff2e63', color: 'white', padding: '16px 45px', borderRadius: '40px', border: 'none', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer', boxShadow: '0 10px 25px rgba(255, 46, 99, 0.4)' }}>
+                      <p style={{ color: '#aaa', marginBottom: '20px', maxWidth: '440px' }}>Select a product from your inventory to feature in this live show, then start broadcasting.</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '460px', marginBottom: '25px' }}>
+                        {sellerProducts.length ? (
+                          sellerProducts.map((product) => (
+                            <button
+                              key={product.id}
+                              onClick={() => handleSelectSellerProduct(product.id)}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                width: '100%',
+                                padding: '14px 18px',
+                                borderRadius: '18px',
+                                border: selectedProductId === product.id ? '2px solid #ff2e63' : '1px solid rgba(255,255,255,0.3)',
+                                background: selectedProductId === product.id ? '#fff3f7' : '#ffffff',
+                                color: '#1a1a1a',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                              }}
+                              type="button"
+                            >
+                              <span>{product.title}</span>
+                              <strong>₹{product.price}</strong>
+                            </button>
+                          ))
+                        ) : (
+                          <div style={{ color: '#fff', background: 'rgba(255,255,255,0.08)', padding: '16px 18px', borderRadius: '18px' }}>
+                            Upload products first in your seller dashboard to feature them live.
+                          </div>
+                        )}
+                      </div>
+                      <button className="go-live-btn" onClick={startLive} disabled={!selectedProductId} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: selectedProductId ? '#ff2e63' : 'rgba(255,46,99,0.5)', color: 'white', padding: '16px 45px', borderRadius: '40px', border: 'none', fontWeight: 'bold', fontSize: '18px', cursor: selectedProductId ? 'pointer' : 'not-allowed', boxShadow: '0 10px 25px rgba(255, 46, 99, 0.4)' }}>
                         <Video size={24} /> START BROADCAST
                       </button>
                     </>
@@ -340,6 +477,33 @@ const LivePage = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid #f0f0f0' }}>
                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1a1a1a' }}>Live Chat</h3>
                <div style={{ padding: '2px 8px', background: '#f0f0ff', borderRadius: '6px', color: '#5c6cff', fontSize: '11px', fontWeight: 'bold' }}>REAL-TIME</div>
+            </div>
+
+            <div className="live-buy-section" style={{ marginBottom: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#1a1a1a' }}>Buy from this live</h4>
+                {isLoadingProducts && <span style={{ fontSize: '12px', color: '#888' }}>Loading products...</span>}
+              </div>
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {featuredProduct ? (
+                  [featuredProduct].map((product) => (
+                    <div key={product.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f7f8ff', borderRadius: '18px', padding: '12px 14px' }}>
+                      <img src={product.image} alt={product.title} style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '16px' }} />
+                      <div style={{ flex: 1 }}>
+                        <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#1a1a1a' }}>{product.title}</p>
+                        <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#5c6cff' }}>₹{product.price}</p>
+                      </div>
+                      <button onClick={() => handleBuyProduct(product)} style={{ background: '#5c6cff', color: 'white', border: 'none', borderRadius: '18px', padding: '10px 18px', fontWeight: 700, cursor: 'pointer' }}>
+                        BUY
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ background: '#f9f9fb', borderRadius: '18px', padding: '18px', color: '#777', fontSize: '13px' }}>
+                    {isLoadingProducts ? "" : "No products are available from this seller right now."}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="live-comments" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>

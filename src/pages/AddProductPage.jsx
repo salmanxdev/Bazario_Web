@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { db, storage } from "../firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { ArrowLeft, Upload, Package, Loader2 } from "lucide-react";
+import { ArrowLeft, Upload, Package, Loader2, Film } from "lucide-react";
 import { showToast } from "../utils/toast";
 
 const AddProductPage = () => {
@@ -13,6 +13,8 @@ const AddProductPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
+  const [videoPreview, setVideoPreview] = useState(null);
+  const [videoFile, setVideoFile] = useState(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -60,6 +62,20 @@ const AddProductPage = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleVideoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 20 * 1024 * 1024) {
+      showToast.error("Video size should be less than 20MB");
+      return;
+    }
+
+    setVideoFile(file);
+    const videoUrl = URL.createObjectURL(file);
+    setVideoPreview(videoUrl);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -90,21 +106,33 @@ const AddProductPage = () => {
       // 1. Upload image to Firebase Storage
       const imageRef = ref(
         storage,
-        `products/${user.uid}/${Date.now()}_${imageFile.name}`
+        `products/${user.uid}/images/${Date.now()}_${imageFile.name}`
       );
 
       const uploadResult = await uploadBytes(imageRef, imageFile);
       const imageURL = await getDownloadURL(uploadResult.ref);
 
+      // 2. Upload video to Firebase Storage if exists
+      let videoURL = "";
+      if (videoFile) {
+        const videoRef = ref(
+          storage,
+          `products/${user.uid}/videos/${Date.now()}_${videoFile.name}`
+        );
+        const videoUploadResult = await uploadBytes(videoRef, videoFile);
+        videoURL = await getDownloadURL(videoUploadResult.ref);
+      }
+
       const sellerName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Seller";
 
-      // 2. Save product to Firestore
+      // 3. Save product to Firestore
       const productData = {
         title: formData.title.trim(),
         price: priceNum,
         category: formData.category,
         description: (formData.description || "").trim(),
         image: imageURL,
+        video: videoURL,
         rating: 0,
         sellerId: user.uid,
         sellerName: sellerName,
@@ -160,19 +188,36 @@ const AddProductPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="product-form">
-          <div className="image-upload-section" style={{ marginBottom: "25px" }}>
-            <label className="image-upload-area" htmlFor="productImage" style={{ width: "100%", height: "250px", border: "2px dashed #ddd", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", background: "#fcfcfc" }}>
-              {imagePreview ? (
-                <img src={imagePreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-              ) : (
-                <div className="upload-placeholder" style={{ textAlign: "center", color: "#888" }}>
-                  <Upload size={40} style={{ marginBottom: "10px" }} />
-                  <p>Click to upload product image</p>
-                  <span style={{ fontSize: "12px" }}>JPG, PNG up to 5MB</span>
-                </div>
-              )}
-              <input type="file" id="productImage" accept="image/*" onChange={handleImageChange} hidden />
-            </label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "25px" }}>
+            <div className="image-upload-section">
+              <label htmlFor="productImage" style={{ width: "100%", height: "200px", border: "2px dashed #ddd", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", background: "#fcfcfc" }}>
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                ) : (
+                  <div className="upload-placeholder" style={{ textAlign: "center", color: "#888" }}>
+                    <Upload size={40} style={{ marginBottom: "10px" }} />
+                    <p>Product Image *</p>
+                    <span style={{ fontSize: "12px" }}>JPG, PNG up to 5MB</span>
+                  </div>
+                )}
+                <input type="file" id="productImage" accept="image/*" onChange={handleImageChange} hidden />
+              </label>
+            </div>
+
+            <div className="video-upload-section">
+              <label htmlFor="productVideo" style={{ width: "100%", height: "200px", border: "2px dashed #ddd", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", background: "#fcfcfc" }}>
+                {videoPreview ? (
+                  <video src={videoPreview} style={{ width: "100%", height: "100%", objectFit: "contain" }} controls onClick={(e) => e.preventDefault()} />
+                ) : (
+                  <div className="upload-placeholder" style={{ textAlign: "center", color: "#888" }}>
+                    <Film size={40} style={{ marginBottom: "10px" }} />
+                    <p>Product Video (Optional)</p>
+                    <span style={{ fontSize: "12px" }}>MP4 up to 20MB</span>
+                  </div>
+                )}
+                <input type="file" id="productVideo" accept="video/*" onChange={handleVideoChange} hidden />
+              </label>
+            </div>
           </div>
 
           <div className="form-fields" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

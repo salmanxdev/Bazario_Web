@@ -52,7 +52,17 @@ const ProductModal = ({ product, onClose }) => {
         <button className="modal-close-btn" onClick={onClose}><X size={24} /></button>
         <div className="modal-content">
           <div className="modal-image-section">
-            <img src={product.image} alt={product.title} />
+            {product.video ? (
+              <video
+                src={product.video}
+                controls
+                autoPlay
+                loop
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <img src={product.image} alt={product.title} />
+            )}
           </div>
           <div className="modal-details-section">
             <h2 className="modal-title">{product.title}</h2>

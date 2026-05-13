@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import AgoraRTC from "agora-rtc-sdk-ng";
 import { toast } from "react-toastify";
+import "../chat-styles.css";
 
 const AGORA_APP_ID = "5492309418244c9a873bb0a2f417dbfd";
 
@@ -101,13 +102,28 @@ const ChatPage = () => {
   useEffect(() => {
     if (!user?.uid) return;
     const callsRef = collection(db, "calls");
-    const q = query(callsRef, where("receiverId", "==", user.uid), where("status", "==", "ringing"));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const callData = snapshot.docs[0].data();
-        setIncomingCall({ ...callData, chatId: snapshot.docs[0].id });
-      } else {
+    
+    const unsubscribe = onSnapshot(callsRef, (snapshot) => {
+      let foundIncomingCall = null;
+      
+      snapshot.forEach((doc) => {
+        const callData = doc.data();
+        // Check if this call is for the current user as a seller/receiver
+        if (callData.status === "ringing" && callData.callerId !== user.uid) {
+          // Check if call is targeted to this user
+          if (callData.receiverId === user.uid) {
+            foundIncomingCall = { ...callData, callDocId: doc.id };
+          }
+        }
+      });
+      
+      // Only update if we found a matching call
+      if (foundIncomingCall) {
+        setIncomingCall(foundIncomingCall);
+      } else if (incomingCall && !snapshot.docs.some(doc => 
+        doc.data().status === "ringing" && doc.data().receiverId === user.uid
+      )) {
+        // Clear incoming call if no matching ringing call exists
         setIncomingCall(null);
       }
     });
@@ -237,6 +253,7 @@ const ChatPage = () => {
         callerId: user.uid,
         callerName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User",
         receiverId: receiverId,
+        callTargetRole: "seller",
         callType: type,
         channelName: callChannelName,
         status: "ringing",
@@ -302,7 +319,7 @@ const ChatPage = () => {
       }
 
       // Update call status
-      await setDoc(doc(db, "calls", incomingCall.chatId), { status: "active" }, { merge: true });
+      await setDoc(doc(db, "calls", incomingCall.callDocId), { status: "active" }, { merge: true });
 
       setInCall(true);
       setCallDuration(0);
@@ -320,9 +337,9 @@ const ChatPage = () => {
   const declineCall = async () => {
     if (!incomingCall) return;
     try {
-      await setDoc(doc(db, "calls", incomingCall.chatId), { status: "ended" }, { merge: true });
+      await setDoc(doc(db, "calls", incomingCall.callDocId), { status: "ended" }, { merge: true });
       setTimeout(async () => {
-        try { await deleteDoc(doc(db, "calls", incomingCall.chatId)); } catch (e) {}
+        try { await deleteDoc(doc(db, "calls", incomingCall.callDocId)); } catch (e) {}
       }, 1000);
     } catch (e) { console.error(e); }
     setIncomingCall(null);

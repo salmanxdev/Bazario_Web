@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Send, ArrowLeft, Phone, Video, Info, X, Mic, MicOff,
   Video as VideoIcon, VideoOff, PhoneOff, ShoppingCart,
-  ChevronDown, ChevronUp, HelpCircle, MessageCircle
+  ChevronDown, ChevronUp, HelpCircle, MessageCircle, Package
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -10,7 +10,7 @@ import { useCart } from "../context/CartContext";
 import { db } from "../firebase";
 import {
   collection, addDoc, query, orderBy, onSnapshot,
-  serverTimestamp, doc, setDoc, deleteDoc, getDoc
+  serverTimestamp, doc, setDoc, deleteDoc, getDoc, where, getDocs
 } from "firebase/firestore";
 import AgoraRTC from "agora-rtc-sdk-ng";
 import { toast } from "react-toastify";
@@ -31,11 +31,15 @@ const ChatPage = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { addToCart } = useCart();
-  const productData = location.state?.product;
+  const [productData, setProductData] = useState(location.state?.product || null);
   const sellerData = location.state?.seller || productData?.seller;
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const messagesEndRef = useRef(null);
+
+  // Seller Product Selection
+  const [myProducts, setMyProducts] = useState([]);
+  const [showProductPicker, setShowProductPicker] = useState(false);
 
   // Call state
   const [inCall, setInCall] = useState(false);
@@ -57,12 +61,26 @@ const ChatPage = () => {
   const [showFaq, setShowFaq] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState(null);
 
-  // Generate a chat ID based on product and user
+  // Generate a chat ID
   const chatId = productData
-    ? `${user?.uid}_${productData.sellerId || "seller"}_${productData.id}`
+    ? `${location.state?.buyerId || user?.uid}_${productData.sellerId || "seller"}_${productData.id}`
     : `general_${user?.uid}`;
 
   const callChannelName = `call_${chatId}`;
+
+  // Fetch Seller Products if needed
+  useEffect(() => {
+    if (user?.role === "seller" && !productData) {
+      const fetchMyProducts = async () => {
+        const q = query(collection(db, "products"), where("sellerId", "==", user.uid));
+        const snap = await getDocs(q);
+        const products = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setMyProducts(products);
+        setShowProductPicker(true);
+      };
+      fetchMyProducts();
+    }
+  }, [user, productData]);
 
   // Listen to messages
   useEffect(() => {
@@ -79,26 +97,41 @@ const ChatPage = () => {
     return () => unsubscribe();
   }, [chatId]);
 
-  // Listen for incoming calls
+  // Global Call Listener for Sellers/Receivers
   useEffect(() => {
-    if (!chatId || !user?.uid) return;
+    if (!user?.uid) return;
+    const callsRef = collection(db, "calls");
+    const q = query(callsRef, where("receiverId", "==", user.uid), where("status", "==", "ringing"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const callData = snapshot.docs[0].data();
+        setIncomingCall({ ...callData, chatId: snapshot.docs[0].id });
+      } else {
+        setIncomingCall(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  // Also listen for call updates for the active chat
+  useEffect(() => {
+    if (!chatId) return;
     const callDocRef = doc(db, "calls", chatId);
     const unsubscribe = onSnapshot(callDocRef, (snapshot) => {
       if (snapshot.exists()) {
         const callData = snapshot.data();
-        if (callData.callerId !== user.uid && callData.status === "ringing") {
-          setIncomingCall(callData);
-        }
         if (callData.status === "ended") {
           endCall(true);
-          setIncomingCall(null);
         }
-      } else {
-        if (incomingCall) setIncomingCall(null);
+        if (callData.status === "active" && isCallConnecting) {
+          // Keep connecting state until Agora handles it
+        }
       }
     });
     return () => unsubscribe();
-  }, [chatId, user?.uid]);
+  }, [chatId, isCallConnecting]);
 
   // Auto-scroll messages
   useEffect(() => {
@@ -199,9 +232,11 @@ const ChatPage = () => {
       }
 
       // Signal call via Firestore
+      const receiverId = productData?.sellerId || sellerData?.uid || "seller";
       await setDoc(doc(db, "calls", chatId), {
         callerId: user.uid,
         callerName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User",
+        receiverId: receiverId,
         callType: type,
         channelName: callChannelName,
         status: "ringing",
@@ -267,7 +302,7 @@ const ChatPage = () => {
       }
 
       // Update call status
-      await setDoc(doc(db, "calls", chatId), { ...incomingCall, status: "active" }, { merge: true });
+      await setDoc(doc(db, "calls", incomingCall.chatId), { status: "active" }, { merge: true });
 
       setInCall(true);
       setCallDuration(0);
@@ -283,8 +318,12 @@ const ChatPage = () => {
   };
 
   const declineCall = async () => {
+    if (!incomingCall) return;
     try {
-      await deleteDoc(doc(db, "calls", chatId));
+      await setDoc(doc(db, "calls", incomingCall.chatId), { status: "ended" }, { merge: true });
+      setTimeout(async () => {
+        try { await deleteDoc(doc(db, "calls", incomingCall.chatId)); } catch (e) {}
+      }, 1000);
     } catch (e) { console.error(e); }
     setIncomingCall(null);
     toast.info("Call declined");
@@ -339,17 +378,12 @@ const ChatPage = () => {
       await addDoc(messagesRef, {
         senderId: user.uid,
         senderName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User",
+        senderRole: user.role || "buyer",
         text: text,
         timestamp: serverTimestamp(),
       });
     } catch (error) {
       console.error("Send message error:", error);
-      setMessages((prev) => [...prev, {
-        id: Date.now().toString(),
-        senderId: user.uid,
-        text: text,
-        timestamp: { seconds: Date.now() / 1000 },
-      }]);
     }
   };
 
@@ -375,6 +409,7 @@ const ChatPage = () => {
     addDoc(messagesRef, {
       senderId: user.uid,
       senderName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User",
+      senderRole: user.role || "buyer",
       text: text,
       timestamp: serverTimestamp(),
     }).catch(console.error);
@@ -393,6 +428,26 @@ const ChatPage = () => {
 
   return (
     <div className="chat-page-full">
+      {/* SELLER PRODUCT PICKER OVERLAY */}
+      {showProductPicker && (
+        <div className="product-picker-overlay">
+          <div className="product-picker-card">
+            <h3>Choose a Product to Chat</h3>
+            <p>Select which product you want to represent in this session.</p>
+            <div className="product-picker-grid">
+              {myProducts.map(p => (
+                <div key={p.id} className="picker-item" onClick={() => { setProductData(p); setShowProductPicker(false); }}>
+                  <img src={p.image} alt="" />
+                  <p>{p.title}</p>
+                </div>
+              ))}
+              {myProducts.length === 0 && <p className="no-products">No products found. Please upload some first.</p>}
+            </div>
+            <button className="picker-close" onClick={() => setShowProductPicker(false)}>Skip</button>
+          </div>
+        </div>
+      )}
+
       {/* INCOMING CALL OVERLAY */}
       {incomingCall && !inCall && (
         <div className="call-incoming-overlay">
@@ -490,7 +545,7 @@ const ChatPage = () => {
           <div className="chat-contact active">
             <img src={productData.image} alt="" className="chat-contact-img" />
             <div>
-              <h4>{sellerData?.name || "Seller"}</h4>
+              <h4>{sellerData?.name || productData.sellerName || "Seller"}</h4>
               <p>{productData.title}</p>
             </div>
           </div>
@@ -541,7 +596,7 @@ const ChatPage = () => {
               <img src={productData.image} alt="" className="chat-avatar" />
             )}
             <div>
-              <h3>{sellerData?.name || "Seller"}</h3>
+              <h3>{sellerData?.name || productData?.sellerName || "Seller"}</h3>
               <span className="chat-status">Active now</span>
             </div>
           </div>
@@ -599,19 +654,20 @@ const ChatPage = () => {
               <p>Start a conversation about this product</p>
             </div>
           )}
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`chat-bubble-wrapper ${
-                msg.senderId === user.uid ? "sent" : "received"
-              }`}
-            >
-              <div className={`chat-bubble ${msg.senderId === user.uid ? "sent" : "received"}`}>
-                <p style={{ whiteSpace: "pre-wrap" }}>{msg.text}</p>
-                <span className="chat-time">{formatTime(msg.timestamp)}</span>
+          {messages.map((msg) => {
+            const isSellerMsg = msg.senderRole === "seller";
+            return (
+              <div
+                key={msg.id}
+                className={`chat-bubble-wrapper ${isSellerMsg ? "sent" : "received"}`}
+              >
+                <div className={`chat-bubble ${isSellerMsg ? "sent" : "received"}`}>
+                  <p style={{ whiteSpace: "pre-wrap" }}>{msg.text}</p>
+                  <span className="chat-time">{formatTime(msg.timestamp)}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div ref={messagesEndRef} />
         </div>
 
